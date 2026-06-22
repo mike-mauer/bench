@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "bench",
+  "owner": {
+    "name": "Mike Mauer",
+    "url": "https://github.com/mike-mauer"
+  },
+  "plugins": [
+    {
+      "name": "bench",
+      "source": "./plugins/bench",
+      "description": "Beads-backed multi-agent orchestration harness: planner/engineer/qa/reviewer pipeline, session lifecycle hooks, worktree hygiene, and a one-time project initializer.",
+      "keywords": ["orchestration", "agents", "beads", "tdd", "workflow"]
+    }
+  ]
+}
