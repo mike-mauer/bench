@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "bench",
   "displayName": "Bench",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Beads-backed multi-agent orchestration harness for Claude Code: a planner/engineer/qa/reviewer pipeline, beads/dolt lifecycle hooks, worktree hygiene, and a one-time project initializer.",
   "author": {
     "name": "Mike Mauer",
@@ -11,9 +11,6 @@
   "repository": "https://github.com/mike-mauer/bench",
   "license": "MIT",
   "keywords": ["orchestration", "agents", "beads", "tdd", "workflow"],
-  "dependencies": [
-    { "name": "beads" }
-  ],
   "userConfig": {
     "bd_version": {
       "type": "string",

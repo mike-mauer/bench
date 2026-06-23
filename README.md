@@ -25,18 +25,27 @@ job of `/bench:init`.
 
 ## Install
 ```bash
-# 1. Add this marketplace (once per machine)
-claude plugin marketplace add mike-mauer/bench
+# 1. Prerequisite: the beads plugin (Bench uses its `bd prime` hooks). Install it
+#    first — Bench does NOT auto-install it (a cross-marketplace dependency can't be
+#    declared reliably; see notes below).
+claude plugin marketplace add gastownhall/beads
+claude plugin install beads@beads-marketplace
 
-# 2. Install the harness into a project (project scope = shared with the team via the repo)
-claude plugin install bench@bench --scope project
-#    (its `beads` dependency is installed automatically)
+# 2. Add this marketplace + install Bench
+claude plugin marketplace add mike-mauer/bench
+claude plugin install bench@bench            # user scope (default); --scope project to share via the repo
 
 # 3. One-time per-project setup
 /bench:init
 #    optional specialist roles:
 /bench:init --with data-eng,design-reviewer --prefix Acme
 ```
+
+> **Note on the beads dependency.** Bench relies on the `beads` plugin for its
+> `bd prime` hooks, but does **not** declare it in `plugin.json` `dependencies`:
+> a bare `{ "name": "beads" }` resolves against Bench's *own* marketplace
+> (`beads@bench`, which doesn't exist) and blocks enablement. Install `beads`
+> yourself first — it's a standard plugin most projects already have.
 
 ## Upgrade
 ```bash

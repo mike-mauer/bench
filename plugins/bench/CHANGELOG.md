@@ -3,6 +3,12 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## 0.1.1 — fix enablement blocker
+- Removed the `dependencies: [{ name: "beads" }]` declaration. A bare dependency
+  name resolves against Bench's own marketplace (`beads@bench`, nonexistent), which
+  made `plugin enable` fail with "bench depends on beads@bench, which is not
+  installed." beads is now documented as a prerequisite to install separately.
+
 ## 0.1.0 — initial extraction
 - Core agents: `planner`, `engineer`, `qa`, `reviewer` (genericized from the Beacon harness).
 - Optional templated roles: `data-eng`, `design-reviewer` (installed via `/bench:init --with`).
