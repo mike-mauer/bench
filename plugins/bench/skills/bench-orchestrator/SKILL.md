@@ -1,6 +1,6 @@
 ---
 name: bench-orchestrator
-description: The Bench orchestration playbook — how the main session routes work through the planner→engineer→qa→reviewer agent pipeline using beads. Use when acting as the orchestrator: decomposing work into beads, spawning role Workers, relaying handoffs, enforcing the bounce cap, and isolating code Workers in worktrees. Read this before dispatching any multi-step engineering work through the agents.
+description: The Bench orchestration playbook — how the main session routes work through the planner→engineer→qa→reviewer agent pipeline using beads. Use when acting as the orchestrator: decomposing work into beads, spawning role Workers, routing the handoffs they record themselves, enforcing the bounce cap, and isolating code Workers in worktrees. Read this before dispatching any multi-step engineering work through the agents.
 ---
 
 # Orchestrator Playbook (Bench harness)
@@ -13,14 +13,14 @@ Before acting on **any** actionable item — a feature, a bug noticed in passing
 bd create --type <feature|bug|task|chore> --priority <p0..p3> --label <lane> \
   --title "<imperative, specific>" --description "<context + acceptance criteria>" --actor=orchestrator
 ```
-Items from an approved plan route through a `planner` Worker (which *designs* the bead specs; **you** file them with `--actor=planner`); a single bug/discussion item you file directly and dispatch.
+Items from an approved plan route through a `planner` Worker, which **files the dependency-ordered bead specs itself** with `--actor=planner`; a single bug/discussion item you file directly (`--actor=orchestrator`) and dispatch.
 
 ## Intake → the pipeline
 ```
 plan/spec (brainstorm → design → plan, produced upstream)
   │  approved plan
   ▼
-planner Worker  →  designs dependency-ordered bead specs (red-test criteria, lane labels); YOU file them with --actor=planner
+planner Worker  →  files dependency-ordered bead specs (red-test criteria, lane labels) itself with --actor=planner
   ▼
 orchestrator (you) drives each bead:
   engineer / [data-eng]  →  qa  →  [design-reviewer for UI]  →  reviewer → closed
@@ -42,17 +42,21 @@ Three phases:
 
 **One PR vs. per-bead PRs:** keep the default **one-bead-one-PR** flow unless the lanes are only meaningful assembled. Bundle into a single reconciled PR only then.
 
-## You are the ONLY bd process (the load-bearing safety rule)
-The board is an **embedded** engine (in-process, single-writer; `bd dolt status` → `embedded`). **Every other role is a subagent, and subagents must run ZERO `bd` commands — all of them, `planner` and `reviewer` included.** A subagent's `bd` writes don't reliably reach the board: in server mode a spawned subagent can fire a **destructive auto-init** that re-stamps project identity and re-imports stale data; in embedded mode a subagent writes to a per-invocation engine and the write is simply lost. **So only you — the top-level session — ever run `bd`.** Every role returns its output as text; you perform all reads and writes with `--actor=<role>`, including `planner`'s `bd create`s and `reviewer`'s `bd close`. Being a spawned subagent is the hazard — worktree-vs-main-tree is irrelevant.
+## One shared board; every role runs bd directly
+The board is a single **embedded** engine (`Mode: direct`) in the main checkout's `.beads/`. **Worktrees share it natively** — bd discovers the canonical board via the git common directory, so a Worker in a worktree runs `bd` against the *same* board the orchestrator does (verified on the pinned **bd 1.0.4**; see `docs/server-mode-migration.md`). **So every role — `planner`, `engineer`, `qa`, `reviewer`, the specialists — reads and writes the board itself with `--actor=<role>`.** Concurrent writes are safe: the Dolt driver serializes them internally (there is no beads-side lock), so they queue rather than fail or drop.
+
+**What you (the orchestrator) still own and do NOT delegate:** decomposition, routing, model selection, the bounce cap, and integration (push / open PR). You no longer courier context or relay writes — the bead carries the context, and each role records its own handoff.
+
+> **Version note.** This native sharing is verified for **bd 1.0.4**, where safety comes from the Dolt driver, not a file lock (the embedded flock was removed in 1.0.4). **Re-spike before bumping `bd_version`** — a driver regression could resurface a concurrent-open panic (GH#2571).
 
 ## The dispatch loop (per bead)
 1. **Pick ready work:** `bd ready` (respect deps; don't start a bead whose deps are open).
 2. **Decide which roles it needs** (routing heuristics below) — not every bead needs every role.
 3. **Pick the model** per Worker (model policy below).
-4. **Claim + gather context (you — the only bd process):** `bd update <id> --claim --actor=<role>`, then capture `bd show <id>` + the **prior handoff block** (`bd comments view <id>`). You hold the full thread; you pass forward the curated slice.
-5. **Spawn the Worker(s)** via the `Agent` tool. Any Worker that needs the feature code — `engineer`, `data-eng`, `qa`, `design-reviewer` — **MUST** get `isolation: "worktree"` (not optional). `planner`/`reviewer` don't need a worktree but still **run zero bd**. Independent beads → spawn in parallel. Into each Worker's prompt, paste **curated context, not the whole thread**: the bead text + **the prior handoff block verbatim** (the most recent role's returned block), plus its role and the bead id. Re-pasting the entire growing comment thread on every hop is O(n²) token growth — the prior handoff already carries forward what the next role needs. **Escape hatch:** if a Worker reports it's blocked, paste the full thread on the next spawn.
-6. **Read the return** (the Worker's handoff block / spec list / verdict).
-7. **Post the handoff + advance (you run all bd):** `bd comment <id> "<the role's returned block>" --actor=<role>`, then `bd update <id> --status=<next> --assignee=<next-role> --actor=<role>` — or, for a `reviewer` pass, `bd close <id> --actor=reviewer`; for `planner`, run its `bd create`/`bd dep` spec with `--actor=planner`. **File new beads** for any FYI/follow-up surfaced. Repeat until you close the bead on the reviewer's pass.
+4. **Claim + assign:** `bd update <id> --claim --assignee=<role> --actor=orchestrator`. You set the work up; you do **not** gather and paste context — the Worker reads it from the bead itself.
+5. **Spawn the Worker(s)** via the `Agent` tool. Any Worker that needs the feature code — `engineer`, `data-eng`, `qa`, `design-reviewer` — **MUST** get `isolation: "worktree"` (not optional). `planner`/`reviewer` don't need a worktree. Independent beads → spawn in parallel. Into each Worker's prompt pass only **the bead id + its role** (plus any cross-cutting context that isn't on the bead). The Worker runs `bd show <id>` and `bd comments <id>` itself to read the spec + prior handoffs — **the bead is the context**, so there is no thread to curate or re-paste (this also kills the old O(n²) re-paste growth).
+6. **Read the return** (the Worker's handoff block / spec list / verdict), then **read the bead** (`bd show <id>`) to confirm the Worker recorded its own handoff + advanced status. The Worker writes; you verify.
+7. **Route + integrate (you don't relay writes):** the Worker has already posted its handoff and advanced status with `--actor=<role>`. You: confirm the transition is sane, **file new beads** for any FYI/follow-up it surfaced (`--actor=orchestrator`), and integrate (push / open PR). Then dispatch the next role — or, on the reviewer's pass, confirm the bead is closed (the reviewer closes it itself, `--actor=reviewer`). Repeat until closed.
 
 ## Handoffs — who writes the comment
 Every Worker ends with a handoff block in this shape:
@@ -64,13 +68,13 @@ FYI: <role(s) or none> — <what they should know>
 BLOCKERS: <none | description>
 <role-specific evidence>
 ```
-**One rule, no split: NO role writes its own bead. Every role relays; you write.** Each returns its handoff block; **you post it verbatim and record the transition**, tagging both with the role that did the work:
+**One rule: each role writes its own handoff.** Before it terminates, every Worker posts its block to the bead and advances status, tagging the write with its own role:
 ```bash
-bd comment <id> "<the role's handoff text>" --actor=<role>
+bd comment <id> "<my handoff block>" --actor=<role>
 bd update <id> --status=<next> --assignee=<next-role> --actor=<role>
 # reviewer pass → bd close <id> --actor=reviewer ; planner → its bead-spec as bd create/dep with --actor=planner
 ```
-`--actor` **must be passed inline on every command** — `BEADS_ACTOR` does not survive across shells. When you spawn the next Worker, **quote the `NEXT`/`FYI` lines meant for it.** Without correct `--actor`, every event collapses to one identity and the board shows a single card instead of `engineer → qa → reviewer`.
+`--actor` **must be passed inline on every command** — `BEADS_ACTOR` does not survive across shells. The next Worker reads these straight from the bead (`bd comments <id>`); nobody re-pastes them. Without correct `--actor`, every event collapses to one identity and the board shows a single card instead of `engineer → qa → reviewer`. **You (orchestrator) write only your own events** — intake beads, follow-ups, dep wiring — with `--actor=orchestrator`.
 
 ## Routing heuristics (which roles a bead needs)
 | Bead shape | Workers (in order) |
@@ -86,7 +90,7 @@ bd update <id> --status=<next> --assignee=<next-role> --actor=<role>
 Defaults, not rails — add/drop a hop per bead. When in doubt, keep `reviewer` (the only role that closes). **Why pure-data beads can skip `qa`:** if the dev environment can't reach the real data store, a `qa` hop only confirms rendering, not numeric correctness — route a data bead through `qa` only when it has a user-observable surface. The unit/golden-fixture tests are `qa`'s replacement on pure-data beads.
 
 ## Bounce cap — escalate instead of looping (you enforce this; the gates can't)
-`qa` and `reviewer` run an **adversarial** posture. Their own brakes (a FAIL needs a concrete reproducible defect; only **Blocking** issues bounce) keep most beads from ping-ponging. The **third brake is yours**, because the gates are ephemeral subagents that can't see a bead's history — only you persist.
+`qa` and `reviewer` run an **adversarial** posture. Their own brakes (a FAIL needs a concrete reproducible defect; only **Blocking** issues bounce) keep most beads from ping-ponging. The **third brake is yours**, because the gates are ephemeral subagents that can't see a bead's history — only you persist. The gates now record their own pass/fail on the bead, so **read `bd show <id>` after each return** to count round-trips — don't rely on memory.
 
 **Rule:** count reject round-trips **per gate, per bead**. After **2** failed round-trips from the same gate on the same bead, **do not dispatch a third fix.** Instead:
 1. Leave the bead `in_progress` (don't close, don't re-dispatch).
@@ -102,20 +106,20 @@ Defaults, not rails — add/drop a hop per bead. When in doubt, keep `reviewer` 
 Frontmatter carries a per-role default; **override at spawn** when the task is bigger or smaller than the role's norm.
 
 ## Workers — lifecycle
-A **Worker** is a one-shot instance of a role. It claims the bead (via the context you pasted), does its one job, returns its handoff, and terminates — ephemeral. Workers can't see each other live: **all cross-Worker communication goes through the bead's handoff comment, relayed by you.** That's why the handoff block is mandatory.
+A **Worker** is a one-shot instance of a role. It reads the bead (`bd show`/`bd comments`), does its one job, posts its handoff with `--actor=<role>`, and terminates — ephemeral. Workers can't see each other live: **all cross-Worker communication goes through the bead's handoff comment, which each role writes itself.** That's why the handoff block is mandatory.
 
 ## Worktree isolation is mandatory for any Worker that needs feature code
-Any Worker that needs the feature code in a working tree — `engineer`, `data-eng` (to edit it), `qa` (to run the app), `design-reviewer` (to inspect the UI) — **must** be spawned with `isolation: "worktree"`. (`planner`/`reviewer` work off committed refs / the context you paste — but still run zero bd.) A Worker that runs `git checkout` in the *shared* tree moves the orchestrator's HEAD, makes feature-branch-only files vanish, and trips git hooks. Two failure modes isolation prevents:
+Any Worker that needs the feature code in a working tree — `engineer`, `data-eng` (to edit it), `qa` (to run the app), `design-reviewer` (to inspect the UI) — **must** be spawned with `isolation: "worktree"`. (`planner`/`reviewer` work off committed refs and the bead itself — no worktree needed, but they still run `bd` directly like every other role.) A Worker that runs `git checkout` in the *shared* tree moves the orchestrator's HEAD, makes feature-branch-only files vanish, and trips git hooks. Two failure modes isolation prevents:
 - **Subagent-type deregistration.** Agent defs only register as spawnable types while present in the working tree. A Worker that checks out a branch lacking them deregisters the roles for the rest of the session. *The same is true if **you** check a feature branch out into the shared tree — don't, for any reason.*
 - **Stop-hook / dirty-tree collisions** between the Worker's in-progress files and your session.
 
-**Isolation alone does NOT prevent board corruption — the zero-bd-subagent rule does.** Worktrees share the main checkout's `.beads/` but lack the gitignored local markers, so a subagent's `bd` can decide the project is uninitialized and fire `bd init`. The guarantee is that **no subagent runs bd at all.**
+**Worktrees reach the board natively — no special handling needed.** bd discovers the canonical `.beads/` via the git common directory, so a Worker's `bd` in a worktree reads and writes the *same* board the orchestrator uses; no orphan DB is created, even when `.beads/` config isn't committed (verified, bd 1.0.4). Use the Agent tool's plain `git worktree add` — **do not use `bd worktree create`**, which rejects any `.beads` under `$HOME` ("BEADS_DIR points to unsafe location").
 
 **Fallback if a native type is unavailable** (e.g. already deregistered): spawn `general-purpose` and tell it to read the role's agent def and adopt that identity.
 
 **Integration:** an isolated builder Worker returns its branch + commit. `reviewer` reads that diff from committed refs (`git show`/`git diff`, no checkout); `qa`/`design-reviewer` get their own isolated worktree to run/inspect. You integrate yourself (push / open PR) — never by checking the branch into your shared tree. **Re-assert your branch after every non-isolated Worker** (`reviewer`/`planner`): run `git branch --show-current` and, if it moved, switch back before the next bd write.
 
-**`.beads/issues.jsonl` is a one-way export from the Dolt DB — never hand-merge it.** Worker branches carry a **stale** export (they run zero bd); on merge, git can resurrect it and revert recent board transitions. Rules: (1) Workers must not commit `.beads/` changes. (2) On any `issues.jsonl` merge conflict, **take your side and re-export** (`bd export -o .beads/issues.jsonl` from the main tree) — never resolve by hand. (3) After merging a feature PR, re-export + commit `issues.jsonl`.
+**`.beads/issues.jsonl` and `.beads/interactions.jsonl` are one-way exports from the Dolt DB — never hand-merge them.** Both are git-tracked and auto-exported by a `.beads/hooks/pre-commit` on every commit, so a Worker branch can carry a **stale** snapshot that, on merge, resurrects old rows and reverts recent board transitions. Rules: (1) **Workers must not commit `.beads/` changes** (neither JSONL). (2) On any `.beads/*.jsonl` merge conflict, **take the main tree's side and re-export** (`bd export -o .beads/issues.jsonl`) — never resolve by hand. (3) After merging a feature PR, re-export + commit from the main tree. This footgun is **live while the board is embedded** — it is not obsolete.
 
 ## Session close (you own this)
 A SessionEnd guard warns on unfiled/unpushed work — but you're responsible:
