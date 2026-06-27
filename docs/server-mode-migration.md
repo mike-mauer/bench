@@ -52,10 +52,25 @@ prompt-curation problem disappears.
 
 ## 3. Risks / open questions to resolve BEFORE coding
 
-1. **Does `bd dolt start` need a separate `dolt` binary?** Embedded mode uses bd's bundled Dolt
-   engine; server mode needs a running `dolt sql-server`. Verify whether `bd dolt start` spins
-   one up from bd's own bundle or requires `dolt` on PATH. If the latter, `install-bd.sh` must
-   also install `dolt`. **Blocking — settle first.**
+1. **Does server mode need a separate `dolt` binary? — RESOLVED: yes, and `bd` won't auto-start
+   it.** The prebuilt release / `install.sh` / `brew install beads` is the *embedded-capable*
+   build (`CGO_ENABLED=1 -tags=gms_pure_go`); `bd` bundles the embedded engine, so embedded "just
+   works" with no extra binary. **Server mode requires the standalone `dolt` CLI installed
+   separately**, plus `bd init --server` pointed at *a running* `dolt sql-server` that the harness
+   must launch and manage itself (the 1.0.x line does **not** auto-start a server — Gas Town only
+   gets auto-start via its `gt` daemon). Consequences for the plan:
+   - `install-bd.sh` must also install a (pinned) standalone `dolt` binary.
+   - `beads-server-up.sh` must *explicitly launch* `dolt sql-server`, health-check it, and run
+     `bd init --server` / set the project to server mode — not just flip a config flag.
+   - The "zero ops, no server, no ports" property is genuinely lost; this is a real cost.
+
+   **Strategic context (verified during Q1):** beads' history is SQLite → server-Dolt (v0.50–0.58)
+   → **reverted to embedded-as-default (v1.0.x)** because mandatory server mode was "a regression
+   for standalone users" (upstream issue #2050). So Bench's embedded choice is the *current
+   upstream default*, and this migration deliberately re-adds the ops burden upstream removed — a
+   justified trade **only if** concurrent autonomous multi-writer board access is a hard
+   requirement. If the real need is "a few agents, occasional parallelism," embedded + the current
+   model (or worktree+git-sync) is lighter and closer to upstream's intent.
 2. **Server boot vs. async bd install.** `install-bd.sh` installs `bd` *detached* so SessionStart
    never blocks; `bd` may not exist yet when the hook returns. Server start must be sequenced
    **after** bd lands — fold it into the same post-install step that already calls
@@ -79,12 +94,15 @@ prompt-curation problem disappears.
 
 - **`hooks/hooks.json`** — SessionStart: after `install-bd.sh`, ensure a Dolt server is up.
   SessionEnd: before/around `beads-cloud-push.sh`, flush + push from the server, then stop it.
-- **`scripts/install-bd.sh`** — if Q1 resolves "separate dolt needed," add a pinned `dolt`
-  install alongside `bd`. After bd lands (line ~91), start the server in dolt-native mode (or
-  call a new `beads-server-up.sh`).
-- **NEW `scripts/beads-server-up.sh`** — idempotent: if no server on the configured port, set
-  `.beads/config.yaml` `sync-mode: dolt-native`, write/verify `.beads/metadata.json`, start
-  `bd dolt start` (or `dolt sql-server`), wait for readiness, best-effort exit 0.
+- **`scripts/install-bd.sh`** — **must add a pinned standalone `dolt` install** alongside `bd`
+  (Q1 resolved: server mode needs it). Linux: `curl -L .../dolt/releases/.../install.sh | bash`;
+  macOS: `brew install dolt`. Keep it detached/best-effort like the bd install. After both land
+  (line ~91), call the new `beads-server-up.sh`.
+- **NEW `scripts/beads-server-up.sh`** — idempotent: if no server on the configured port,
+  **explicitly launch `dolt sql-server`** (bd does not auto-start one), wait for readiness, then
+  ensure the project is server-mode (`bd init --server` if uninitialized; `.beads/config.yaml`
+  `sync-mode: dolt-native`, `.beads/metadata.json` pointing at the port). Best-effort exit 0, but
+  agents must fail loud (not auto-init) if the server isn't up.
 - **`scripts/beads-bootstrap.sh`** — still rehydrates from `git+origin` `refs/dolt/*`, but loads
   into the **server's** `.beads/dolt/` rather than `.beads/embeddeddolt/`. Update the comment
   block (it currently names `.beads/embeddeddolt` as the gitignored DB).
