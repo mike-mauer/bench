@@ -25,6 +25,25 @@ VERSION="${VERSION#v}"
 DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}"
 BIN_DIR="$DATA_DIR/bin"
 
+# Warn (never fail) when the bd that will actually run differs from the pinned
+# version. Drift is silent and bites downstream: an unpinned bd means the harness
+# runs a version it was not validated against, and bd output-shape changes between
+# releases can break consumers (e.g. BeadBox stopped rendering comments when a
+# Homebrew bd jumped ahead of the pin). See the beads-health-check skill.
+warn_if_bd_drift() {
+  command -v bd >/dev/null 2>&1 || return 0
+  local have where
+  have="$(bd version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+  where="$(command -v bd 2>/dev/null)"
+  if [ -n "$have" ] && [ "$have" != "$VERSION" ]; then
+    log "⚠️  bd version drift: PATH bd is v${have} (${where}), but Bench pins v${VERSION}."
+    log "    The harness will run v${have} — a version it was not validated against, and"
+    log "    bd output-shape changes between releases can break tools (e.g. BeadBox comments)."
+    log "    Fix: unlink/remove the other bd (e.g. 'brew unlink beads') so ${BIN_DIR} wins,"
+    log "    or set the bd_version plugin config to v${have} if that drift is intentional."
+  fi
+}
+
 # Export bd's likely locations on PATH for the rest of the session — unconditionally
 # and up front, so bd is usable the moment the (possibly detached) install lands.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
@@ -36,8 +55,9 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   } >> "$CLAUDE_ENV_FILE"
 fi
 
-# Already have bd somewhere on PATH? Respect it — nothing to install.
+# Already have bd somewhere on PATH? Respect it — nothing to install — but warn on drift.
 if command -v bd >/dev/null 2>&1; then
+  warn_if_bd_drift
   bash "$(dirname "${BASH_SOURCE[0]}")/beads-bootstrap.sh" >/dev/null 2>&1 || true
   exit 0
 fi

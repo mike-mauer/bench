@@ -3,6 +3,14 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## 0.2.1 — warn on bd version drift
+- SessionStart (`install-bd.sh`) now warns when the `bd` on PATH differs from the pinned
+  `bd_version`. Drift is silent and bites downstream: the harness ends up running a bd it was
+  never validated against, and bd output-shape changes between releases can break consumers — a
+  Homebrew bd sitting ahead of the pin was found to stop BeadBox rendering issue comments (the
+  comment data was intact; only BeadBox's parse of the newer `bd show --json` broke). The warning
+  names the offending binary and the fix (`brew unlink beads`, or set `bd_version` to match).
+
 ## 0.2.0 — agents run bd directly (Option B′)
 - **Access-model change.** Replaced the "subagents run ZERO bd" rule with direct board access:
   every role runs `bd` against the one shared embedded board, reads its context from the bead
