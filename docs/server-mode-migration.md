@@ -201,7 +201,50 @@ invariants:
 
 ---
 
-## 7. Explicitly out of scope
+## 7. Side-by-side: which concurrency model to actually adopt
+
+Three real options reach the four goals (agent-native tracking · observability · fresh-context
+impl↔test loop · smooth concurrency). The fresh-context loop (goal 3) is **orthogonal** — all
+three support it — so it's omitted from the matrix; the decision turns on concurrency and ops.
+
+| Dimension | **A. Embedded + courier** (current) | **B. Worktree + git-sync** | **C. Server mode (dolt-native)** |
+|---|---|---|---|
+| Live shared board during a run? | One board, but **only the orchestrator** sees/writes it | **No** — each agent has its own embedded DB; reconciled at merge | **Yes** — one live server all agents read/write in real time |
+| Who runs `bd` | Orchestrator only | **Every agent** (in its own worktree DB) | **Every agent** (as a client of the server) |
+| Context delivery | Orchestrator curates + pastes (courier) | Bead — agent reads its own DB copy | Bead — agent reads the live board |
+| Consistency model | Serialized through one process | **Eventual** — agents see stale peers until a sync/merge | **Strong** — single source of truth, immediate |
+| Cross-agent claim/coordinate | N/A (orchestrator assigns) | **Races** if agents self-claim from a shared queue; **safe if the orchestrator partitions disjoint beads up front** | Safe — atomic `--claim` against the live board |
+| Conflict handling | None needed | Dolt cell-level merge + hash IDs on merge | Dolt server, in-flight |
+| Ops burden | **Zero** (no server, no extra binary) | **Zero daemon** — but per-worktree DB bootstrap/push choreography | **Daemon** — pinned `dolt` binary + launch/health-check/`bd init --server` lifecycle |
+| Upstream alignment | **Current default** (v1.0.x embedded) | Embedded, supported (Yegge's "agent village") | Supported, but the path upstream walked back for standalone (#2050) |
+| Practical scale ceiling | 1 writer | A handful → moderate; "git sync doesn't scale to high-frequency concurrent edits" | **Dozens–hundreds** (Gas Town: ~160/host) |
+| Goal 1 — agent-native tracking | ✔ (via orchestrator) | ✔ (agents write directly) | ✔ (agents write directly) |
+| Goal 2 — observability | CLI, orchestrator-mediated | CLI + git history per bead | CLI + git history + **live server for BeadBox** |
+| Goal 4 — smooth concurrency | ✗ serialized, not concurrent | ✔ for disjoint work; ✗ for shared-queue self-claim | ✔ unconditionally |
+| Migration effort from today | none | **medium** — drop courier rule, add per-worktree bd bootstrap/push, keep embedded | **large** — §4 inventory: daemon lifecycle + access-model rewrite |
+| Main risk | Courier bottleneck; not really concurrent | Sync races / stale views; reconcile complexity | Daemon lifecycle in ephemeral containers; re-added ops |
+
+### The deciding question: *who decides what each agent works on?*
+
+- **Orchestrator partitions disjoint beads up front** (Bench's existing Phase-0→fan-out→reconcile
+  parallel-lane protocol): no two agents touch the same bead, so there are **no real write
+  conflicts** — **B (worktree + git-sync)** gets you direct agent `bd` writes, observability, and
+  concurrency **with zero daemon**, staying on the upstream-default embedded engine. This is the
+  lighter path and it fits how Bench already decomposes work.
+- **Agents autonomously self-claim from a shared ready-queue**, or you want real-time cross-agent
+  visibility, or you're targeting **dozens** of concurrent agents: the eventual-consistency window
+  in B becomes a claim-race, and only **C (server mode)** is safe. This is the Gas Town regime.
+
+### Recommendation by scale
+
+- **2–5 occasional parallel lanes, orchestrator-partitioned** → **Option B.** Hits all four goals,
+  no daemon, smallest migration, upstream-aligned. (Resolves the original "agents write their own
+  handoffs" ask without re-adding ops.)
+- **Dozens of agents, or autonomous self-claiming, or a shared live board across sessions** →
+  **Option C** (this doc's plan). The ops cost is the price of that regime.
+- **Concurrency is rare / simplicity paramount** → stay on **A**.
+
+## 8. Explicitly out of scope
 
 - **DoltHub** as a remote (we stay on GitHub `refs/dolt/*`). Could be added later purely as a
   browsable mirror without touching this design.
