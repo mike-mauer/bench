@@ -22,6 +22,13 @@ When in doubt, use the pipeline.
 layer, auth/security, or spans multiple files; default to inline for low-risk single-file
 edits, docs, and config. If you go inline on risky work, say so and offer the review gates.
 
+**Custom roles are part of the pipeline.** The pipeline is not limited to the built-in
+roles. **Any agent in `.claude/agents/` is a routable role** — including project-defined
+ones scaffolded by `/bench:new-agent`. Before routing, treat that directory as the source
+of truth for which roles exist; slot each custom role in per its frontmatter `description`
+and `## Routing` block. Do **not** add custom-role routing inside this managed block — it
+is regenerated on `/bench:init`; the agent defs are the durable registration.
+
 ### Beads Issue Tracker
 - Use `bd` for ALL task tracking — do NOT use ad-hoc TODO lists.
 - `bd ready` (available work) · `bd show <id>` · `bd update <id> --claim` · `bd close <id>`.

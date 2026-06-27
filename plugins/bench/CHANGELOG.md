@@ -3,6 +3,26 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## 0.3.0 — custom roles (`/bench:new-agent`)
+- **New command `/bench:new-agent <name>`.** Scaffolds a project-owned, Bench-compliant
+  Worker into `.claude/agents/<name>.md` from a generic template
+  (`templates/custom-agent.md`) — handoff block, `--actor=<name>` attribution, direct bd
+  access, worktree note, and a self-declared `## Routing` block. Flags: `--kind
+  builder|gate`, `--model`, `--tools`, `--sits`. Reserved names (built-ins + the two
+  optional roles + `orchestrator`) are rejected; an existing file is never clobbered.
+- **The pipeline role set is now open.** The orchestrator discovers roles by listing
+  `.claude/agents/` rather than from a fixed list: any agent there is routable, placed per
+  its frontmatter `description` + `## Routing`. This fixes the gap where a hand-added role
+  was never routed to because the managed CLAUDE.md block didn't name it — and because
+  discovery is via the (project-owned) agent defs, custom routing **survives `/bench:init`
+  refreshes** with no managed-block edits. Documented in the `bench-orchestrator` skill
+  (new "Custom / project-defined roles" section + routing-table row).
+- `/bench:doctor` now lists custom roles and flags any with unfilled `<<FILL>>`s or an
+  incomplete `## Routing` block.
+- **Action required — re-run `/bench:init`.** The `CLAUDE.bench.md` block gained a
+  "Custom roles are part of the pipeline" clause, so its content hash bumped; the
+  SessionStart drift-check will flag installed projects. Re-run `/bench:init` to refresh.
+
 ## 0.2.0 — agents run bd directly (Option B′)
 - **Access-model change.** Replaced the "subagents run ZERO bd" rule with direct board access:
   every role runs `bd` against the one shared embedded board, reads its context from the bead

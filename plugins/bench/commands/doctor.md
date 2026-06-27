@@ -29,8 +29,11 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
 5. **Hooks duplication** — inspect the project's `.claude/settings.json`. If it still has a
    hand-rolled `bd prime` SessionStart hook, ⚠️ it double-fires with the plugin/beads hooks →
    run `/bench:init` (Step 3) to remove it.
-6. **Optional roles** — report which of `data-eng` / `design-reviewer` exist in
-   `.claude/agents/`, and flag any still containing `<<FILL: ...>>` placeholders.
+6. **Optional + custom roles** — list `.claude/agents/`. Report which of `data-eng` /
+   `design-reviewer` exist, and list any **custom roles** (other `*.md`, scaffolded by
+   `/bench:new-agent`). Flag any agent still containing `<<FILL: ...>>` placeholders (not
+   ready to route) and any custom role whose `## Routing` block still has an unresolved
+   `NEXT_PASS` / `NEXT_FAIL` / position (the orchestrator can't place it).
 7. **Worktrees** — report the count under `.claude/worktrees/` (the SessionStart
    `worktree-reap` hook prunes merged/stale ones).
 8. **Board engine mode** — `bd info` (or `bd dolt show`); report `Mode:` (Bench's default is

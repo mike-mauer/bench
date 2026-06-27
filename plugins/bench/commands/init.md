@@ -63,4 +63,7 @@ For each role in `--with`:
 ## Step 6 — Report
 Summarize: CLAUDE.md block (added/refreshed, with the version+hash), beads board state +
 prefix, settings changes made, permissions added, and which optional roles were installed.
-Remind the user to commit the changes (`CLAUDE.md`, `.beads/`, `.claude/`).
+Remind the user to commit the changes (`CLAUDE.md`, `.beads/`, `.claude/`). If the project
+needs a role beyond the built-ins and the two optional templates, point them at
+`/bench:new-agent <name>` — custom roles are project-owned and auto-discovered, so they do
+not require editing (or re-running) the managed CLAUDE.md block.

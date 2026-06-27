@@ -15,6 +15,8 @@ installable, upgradeable plugin. Drop it into any project to get:
 - A one-time **`/bench:init`** that injects the always-on orchestrator rules into your
   project's `CLAUDE.md`, initializes the board, and de-dupes hooks — the things a plugin
   can't do passively.
+- **`/bench:new-agent`** to mint your own pipeline roles beyond the built-ins — the
+  orchestrator discovers and routes to them automatically (see below).
 
 ## Why a plugin + a marketplace?
 A Claude Code plugin can ship agents, skills, commands, and hooks, and **upgrades cleanly**
@@ -71,8 +73,24 @@ plugins/bench/
 ├── hooks/hooks.json   SessionStart: install-bd, worktree-reap, drift-check
 │                       SessionEnd: stop-guard, cloud-push   (NOT bd prime — from beads dep)
 ├── scripts/           the hook implementations
-└── templates/         CLAUDE.bench.md  (the block /bench:init injects)
+└── templates/         CLAUDE.bench.md · custom-agent.md  (block + custom-role scaffold)
 ```
+
+## Custom roles
+The built-in pipeline is `planner → engineer → qa → reviewer`, with optional `data-eng` /
+`design-reviewer`. When a concern needs its own owner or gate, scaffold a **custom role**:
+```bash
+/bench:new-agent api-reviewer --kind gate --sits 'after qa, before reviewer'
+/bench:new-agent perf --kind builder --model opus
+```
+This writes a Bench-compliant Worker to `.claude/agents/<name>.md` (handoff block,
+`--actor=<name>` attribution, direct `bd` access, and a self-declared `## Routing` block);
+fill its `<<FILL: ...>>` placeholders and commit. **The orchestrator discovers roles by
+listing `.claude/agents/`** and routes to each per its `description` + `## Routing` — so a
+custom role is wired into the pipeline by its mere presence, with **nothing to add to the
+managed `CLAUDE.md` block** (which is regenerated on every `/bench:init`). That is the
+durable fix for "I added a role but it never gets routed to": the agent def *is* the
+registration, and it survives plugin refreshes because it's project-owned.
 
 ## Configuration
 `bd_version` (plugin userConfig, default `1.0.4`) — the beads CLI version the SessionStart
