@@ -26,16 +26,17 @@ edits, docs, and config. If you go inline on risky work, say so and offer the re
 - Use `bd` for ALL task tracking — do NOT use ad-hoc TODO lists.
 - `bd ready` (available work) · `bd show <id>` · `bd update <id> --claim` · `bd close <id>`.
 - Run `bd prime` for command reference and session-close protocol (provided by the beads plugin).
-- **Only the main session runs `bd`.** Pipeline subagents run ZERO bd commands — they
-  return their work as text and the orchestrator records it (see the `bench-orchestrator`
-  skill for why: the embedded single-writer board loses or corrupts subagent writes).
+- **Every role runs `bd` directly** against the shared project board with `--actor=<role>` —
+  agents in worktrees reach the same board via git-common-dir discovery (verified bd 1.0.4). The
+  orchestrator owns routing, integration, and the bounce cap, not courier duty (see the
+  `bench-orchestrator` skill).
 
 ### Agent identity (actor attribution)
 Every `bd` write must be attributed with `--actor` so activity shows the right agent and
 the `engineer → qa → reviewer` chain renders as distinct events. Pass `--actor` **inline on
 every `bd` write** — env vars don't survive across shell calls.
 - Your own intake / inline-mode writes: `--actor=orchestrator`.
-- Relayed pipeline-role writes: the role that did the work, e.g. `bd close <id> --actor=reviewer`.
+- Each pipeline role writes its own events with its own actor, e.g. the reviewer runs `bd close <id> --actor=reviewer` and the planner runs its `bd create`s with `--actor=planner`.
 
 ### Git Workflow
 - **Commit frequently** — small, focused commits after each logical change.

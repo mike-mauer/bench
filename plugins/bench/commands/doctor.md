@@ -33,6 +33,10 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
    `.claude/agents/`, and flag any still containing `<<FILL: ...>>` placeholders.
 7. **Worktrees** — report the count under `.claude/worktrees/` (the SessionStart
    `worktree-reap` hook prunes merged/stale ones).
+8. **Board engine mode** — `bd info` (or `bd dolt show`); report `Mode:` (Bench's default is
+   embedded `direct`). Bench runs **every role's `bd` directly** against this one shared board —
+   agents reach it from worktrees via git-common-dir discovery — so in embedded mode there is no
+   server to check. **Do not run `bd doctor`** — it is unsupported in embedded mode.
 
 End with a one-line summary and, for any ⚠️, the exact command to resolve it. For a deep
 board audit, point the user at the `beads-health-check` skill.

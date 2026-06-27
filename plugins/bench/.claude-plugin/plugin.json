@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "bench",
   "displayName": "Bench",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Beads-backed multi-agent orchestration harness for Claude Code: a planner/engineer/qa/reviewer pipeline, beads/dolt lifecycle hooks, worktree hygiene, and a one-time project initializer.",
   "author": {
     "name": "Mike Mauer",
