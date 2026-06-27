@@ -244,7 +244,12 @@ three support it — so it's omitted from the matrix; the decision turns on conc
   **Option C** (this doc's plan). The ops cost is the price of that regime.
 - **Concurrency is rare / simplicity paramount** → stay on **A**.
 
-## 8. Option B implementation plan (designed C-forward)
+## 8. Option B implementation plan (designed C-forward) — SUPERSEDED by §11
+
+> **⚠️ Superseded.** This section designed a hydrate/reconcile mechanic for worktree boards. The
+> §9 spike proved bd 1.0.4 shares the canonical board across worktrees *natively* (git-common-dir
+> discovery), so the hydrate/reconcile machinery here is unnecessary. Kept for history; the live
+> plan is **§11 (Option B′)**.
 
 We adopt **Option B (worktree + git-sync, no daemon)** now, structured so a later move to
 **Option C (server mode)** is a transport swap — not an agent or orchestrator rewrite. The
@@ -409,7 +414,123 @@ solved.
 4. **doctor / health-check** wording.
 5. **(Later, only if scale demands) Option C** — §4 inventory, unchanged by the above.
 
-## 10. Explicitly out of scope
+## 11. Option B′ implementation plan (live plan, C-forward)
+
+The plan of record. B′ = **let worktree subagents run `bd` directly against the one shared embedded
+board** (proven safe on bd 1.0.4 in §9). It is overwhelmingly a **prose change** to three surfaces;
+**no new scripts, no `dolt`, no daemon, no hydrate/reconcile.** Every change is written so a later
+flip to Option C (server) touches *only* lifecycle scripts + one config knob — never an agent.
+
+### 11.1 Governing principle (the C seam)
+
+> **Agents are board-mode-agnostic.** Each agent's contract is identical in B′ and C: *"the project
+> board is reachable from your worktree — read your context from the bead and write your handoff
+> with `--actor=<role>`."* Mode-specific facts (embedded, file-lock, git-common-dir discovery vs.
+> a `dolt sql-server`) live **only** in the orchestrator skill + lifecycle scripts + this doc.
+> Agent defs must say **"the project board,"** never **"the embedded board"** — so C needs zero
+> agent edits.
+
+`BENCH_BOARD_MODE` (default `embedded`; later `server`) is read **only** by lifecycle scripts and
+`doctor`. B′ ships with `embedded` and never reads the knob from an agent.
+
+### 11.2 Scope — what changes vs. what explicitly does NOT
+
+**Changes (3 prose surfaces):**
+1. `skills/bench-orchestrator/SKILL.md` — the access model + dispatch loop + handoff ownership.
+2. `agents/*.md` + `agents-optional/*.md` — the "zero bd" paragraph → "read/write the board directly."
+3. `templates/CLAUDE.bench.md` — the "only the main session runs bd" bullet (bumps drift hash).
+
+**Explicitly unchanged (important — keeps the diff small and the risk low):**
+- `install-bd.sh` (no `dolt`), `beads-bootstrap.sh`, `beads-cloud-push.sh`, `beads-stop-guard.sh`
+  — embedded + `git+origin` `refs/dolt/*` sync is untouched.
+- `worktree-reap.sh` — still reaps orphaned git worktrees.
+- `hooks.json` — no new hooks.
+- No `beads-server-up.sh`/`-down.sh`, no `sync-mode` config (those are C-only, §4).
+
+### 11.3 Detailed edits
+
+**A. `skills/bench-orchestrator/SKILL.md`**
+- **Delete** "You are the ONLY bd process" (§ lines ~45–46). Replace with **"The board is one
+  shared embedded engine; the orchestrator and every worktree agent run `bd` directly against it
+  (git-common-dir discovery — verified bd 1.0.4). Concurrent writes serialize on the file lock, they
+  do not fail."**
+- **Dispatch loop** (~48–55): the orchestrator still **claims/assigns** and **integrates** (push/PR),
+  but:
+  - drop "gather context / paste the curated slice" → spawn with **just the bead id + role**; the
+    agent runs `bd show <id>` / `bd comments <id>` itself.
+  - drop "Post the handoff + advance (you run all bd)" → the **agent** writes its own
+    `bd comment … --actor=<role>` + `bd update`/`bd close`. The orchestrator verifies and routes.
+  - delete the O(n²)-curation rationale and the "escape hatch: paste full thread" (moot — the bead
+    is the context).
+- **"Handoffs — who writes the comment"** (~57–73): invert to **"each role writes its own handoff
+  comment + status transition with `--actor=<role>`."** Keep the handoff *block format* verbatim —
+  it's still the inter-agent contract.
+- **Worktree isolation** (~107–118): **keep the rule, narrow the reason** to code isolation (don't
+  move shared HEAD, don't trip hooks). **Delete** the board-corruption rationale and the
+  `issues.jsonl`-resurrection warning (obsolete). Note plain Agent-tool worktrees already get
+  git-common-dir discovery; `bd worktree create` is optional, not required.
+- **Bounce cap, routing heuristics, model policy:** unchanged.
+- **`issues.jsonl` rule:** keep "Workers don't commit `.beads/`; re-export from canonical after a
+  feature merge" — still valid, harmless.
+
+**B. Agent defs** (`engineer`, `qa`, `reviewer`, `planner`, +optional `data-eng`, `design-reviewer`)
+- Replace the "you are a subagent, run ZERO bd, embedded single-writer/auto-init hazard" paragraph
+  with: *"You run in a worktree that shares the project board (bd discovers it via the git common
+  dir). Read your context with `bd show <id>` / `bd comments <id>`. On finish, post your handoff
+  with `bd comment <id> "…" --actor=<role>` and advance status (`bd update`/`bd close
+  --actor=<role>`)."*
+- `engineer`: writes its own handoff + opens the PR (already does the PR).
+- `reviewer`: runs `bd close --actor=reviewer` itself on pass.
+- `planner`: runs its own `bd create`/`bd dep add --actor=planner`.
+- Keep each role's handoff block + checklist. Use **"the project board,"** never "embedded."
+
+**C. `templates/CLAUDE.bench.md`** (~29–31)
+- Rewrite the bullet to: *"Every agent runs `bd` directly against the shared project board with
+  `--actor=<role>`; the orchestrator owns routing, integration, and the bounce cap, not courier
+  duty."* Bumps the content hash → SessionStart drift-check nudges existing projects to re-run
+  `/bench:init`. Intended.
+
+**D. `commands/doctor.md` + `skills/beads-health-check/SKILL.md`** (light)
+- doctor: add a one-liner confirming a worktree can reach the board (`bd show` from a temp worktree)
+  and report `BENCH_BOARD_MODE`. health-check: note embedded is the supported default; server is the
+  scale-up path.
+
+### 11.4 The C migration, preserved
+
+When/if scale demands it (dozens of high-frequency concurrent writers — *not* your stated scale),
+flip to C with **zero agent/skill-contract changes**:
+1. `install-bd.sh` also installs pinned `dolt`; add `beads-server-up.sh`/`-down.sh` (§4), gated on
+   `BENCH_BOARD_MODE=server`.
+2. Set `sync-mode: dolt-native`, `bd init --server`.
+3. Agents are unchanged — "read the board / write with `--actor`" is already true against a server.
+
+**Trigger to flip:** sustained handoff-write latency from lock contention (≈430ms/write at 16-way in
+the spike) becoming material, or a move to autonomous self-claim from a shared queue.
+
+### 11.5 Phases & acceptance
+
+1. **Skill rewrite (A)** — orchestrator no longer couriers; agents own their bd writes. *Accept:* a
+   dry-run dispatch description shows the agent reading `bd show` and writing its own `--actor`
+   handoff.
+2. **Agent defs + template (B, C)** — propagate the contract. *Accept:* no agent def contains the
+   word "ZERO bd" or "embedded single-writer"; all say "the project board."
+3. **doctor/health-check (D)** — *Accept:* `/bench:doctor` reports board reachability + mode.
+4. **End-to-end on a scratch board** — reuse the §9 spike harness: one real bead through
+   engineer→qa→reviewer, each role writing its own `--actor` comment, orchestrator closing only via
+   reviewer's pass. *Accept:* `bd show` renders the full `engineer → qa → reviewer` chain with
+   correct actors, no orchestrator-relayed writes.
+
+### 11.6 Risks
+
+- **Bounce-cap visibility.** The cap is orchestrator-enforced (gates can't see history). With agents
+  writing status directly, the orchestrator must still **read** `bd show` after each return to count
+  round-trips. Keep that read in the loop.
+- **Drift-hash churn.** Changing `CLAUDE.bench.md` nudges every installed project to re-run
+  `/bench:init`. Call it out in the changelog.
+- **Stale-version regression.** The native-sharing behavior is verified for **bd 1.0.4**. If
+  `bd_version` is bumped, re-run the §9 spike before trusting it. Pin remains 1.0.4.
+
+## 12. Explicitly out of scope
 
 - **DoltHub** as a remote (we stay on GitHub `refs/dolt/*`). Could be added later purely as a
   browsable mirror without touching this design.
