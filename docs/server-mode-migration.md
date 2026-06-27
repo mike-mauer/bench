@@ -244,7 +244,172 @@ three support it — so it's omitted from the matrix; the decision turns on conc
   **Option C** (this doc's plan). The ops cost is the price of that regime.
 - **Concurrency is rare / simplicity paramount** → stay on **A**.
 
-## 8. Explicitly out of scope
+## 8. Option B implementation plan (designed C-forward)
+
+We adopt **Option B (worktree + git-sync, no daemon)** now, structured so a later move to
+**Option C (server mode)** is a transport swap — not an agent or orchestrator rewrite. The
+governing principle:
+
+> **Agents are board-mode-agnostic.** Every agent's contract is the same in B and C: "the project
+> board is reachable; read your context from the bead and write your handoff with
+> `--actor=<role>`." *How* the board is reached (per-worktree synced DB in B, live server in C)
+> lives entirely in the lifecycle scripts + one config knob — never in an agent prompt.
+
+### 8.1 The B-read vs B-write fork (decide first)
+
+The hard part of B is that a worktree has no bd DB (`.beads/embeddeddolt` is gitignored, so it
+isn't copied into a worktree). Two flavors differ only on the **write** path:
+
+- **B-read (recommended).** The orchestrator hydrates each worktree with a board snapshot so the
+  agent **reads context from the bead itself** (`bd show` / `bd comments view`) — satisfying the
+  original "context delivered by the bead, not the orchestrator" goal. The agent still **returns
+  its handoff as text and the orchestrator writes it** to the canonical board with `--actor=<role>`
+  (which the user explicitly accepted: *"each sub agent writing **(or telling the orchestrator to
+  write)** a report"*). **No DB-merge mechanic needed** — writes never originate in the worktree.
+- **B-write (heavier).** Worktrees get *writable* DBs; agents run `bd comment`/`bd update`
+  themselves; the orchestrator reconciles each returned worktree DB back into canonical via Dolt
+  cell-level merge. Closer to C's write path, but adds an unproven local-DB merge step that is
+  thrown away when C arrives anyway (the server makes it moot).
+
+**Recommendation: B-read.** It delivers the read-path goal and concurrency with the *least* new
+machinery, and its throwaway-on-C surface (a read-only hydrate + the existing relay) is smaller
+than B-write's (hydrate + merge). The write path stays exactly as it is today until C flips both
+reads and writes to the live server.
+
+### 8.2 Architecture (B-read)
+
+```
+orchestrator (canonical embedded board, main tree)
+  │  partitions disjoint beads (existing Phase-0 → fan-out protocol)
+  │  for each lane: snapshot canonical board → hydrate the lane's worktree (read-only)
+  ▼
+worktree agent  ── reads context itself: bd show <id> / bd comments view <id> ──┐
+  │  does its one job (TDD loop), returns handoff block as text                  │
+  ▼                                                                              │
+orchestrator  ── writes the returned handoff to canonical: bd comment/update --actor=<role> ──┘
+```
+
+The snapshot-hydrate-before and relay-after are the **seam**. In C both collapse: agents read
+*and* write the live server, the hydrate is gone, the relay is gone.
+
+### 8.3 The seam: `BENCH_BOARD_MODE`
+
+One config knob (env or `.beads`-adjacent setting), read **only** by lifecycle scripts +
+`doctor` — never by agents:
+
+| `BENCH_BOARD_MODE` | hydrate worktree | agent reads | agent writes | reconcile |
+|---|---|---|---|---|
+| `worktree-sync` (B) | read-only snapshot | direct (`bd show`) | relayed by orchestrator | none |
+| `server` (C) | none (points at server) | direct (live) | direct (live) | none |
+
+### 8.4 File inventory — split by layer
+
+**Mode-agnostic core (identical for B and C — the durable rewrite):**
+- `skills/bench-orchestrator/SKILL.md` — replace "you are the ONLY bd process" with the seam
+  model: agents **read** the bead directly; the orchestrator hydrates worktrees and (in B) relays
+  writes. Keep routing / bounce-cap / decompose unchanged. Drop the O(n²) curated-context rule —
+  context now comes from the bead.
+- `agents/*.md`, `agents-optional/*.md` — the "run ZERO bd" prose becomes "read your context with
+  `bd show <id>` / `bd comments view <id>`; return your handoff block." (No change to the
+  return-as-text handoff itself in B-read — only the *read* path changes.)
+- `templates/CLAUDE.bench.md` — rewrite the "Only the main session runs bd … subagents run ZERO
+  bd" bullet to "agents read the board directly; the orchestrator hydrates worktrees and records
+  transitions with `--actor`." (Bumps the drift hash → existing projects re-run `/bench:init`.)
+
+**B-transport (thrown away / no-op'd when C lands):**
+- NEW `scripts/beads-worktree-hydrate.sh` — given a worktree path, materialize a read-only board
+  snapshot the agent can `bd show` against (exact mechanic = spike, §8.5).
+- `skills/bench-orchestrator/SKILL.md` dispatch loop — add "snapshot → hydrate the worktree"
+  before spawn; keep the relay after return.
+- `scripts/worktree-reap.sh` — clean up hydrated snapshots on reap.
+
+**C-transport (deferred; already inventoried in §4):**
+- `install-bd.sh` (+`dolt`), `beads-server-up.sh`/`-down.sh`, `sync-mode: dolt-native` — all gated
+  behind `BENCH_BOARD_MODE=server`. None of the mode-agnostic core changes when these arrive.
+
+### 8.5 Spike (validate before the core rewrite) — needs a live `bd`
+
+The whole plan rests on one unproven mechanic: **can a worktree cheaply get a readable board
+snapshot?** Spike candidates, fastest-first:
+1. `bd export` from canonical → a file the worktree reads via a fresh `bd init` + import, OR
+2. a local Dolt clone of `refs/dolt/data` into the worktree's `.beads/`, OR
+3. simply un-gitignoring/copying a read-only `.beads/embeddeddolt` snapshot into the worktree.
+
+Acceptance: in a worktree, `bd show <id>` and `bd comments view <id>` return the canonical board's
+content, **without** the worktree auto-initing an orphan or mutating canonical. Pick the cheapest
+that passes. (Spike harness lives outside the repo; only the chosen mechanic lands in
+`beads-worktree-hydrate.sh`.)
+
+### 8.6 Sequencing
+
+1. **Spike §8.5** — pick the hydrate mechanic. *Blocking for the B-transport scripts only.*
+2. **Mode-agnostic core** — rewrite skill + agent defs + template to the read-from-bead contract.
+   Safe to do in parallel with the spike; it's identical for B and C.
+3. **B-transport** — `beads-worktree-hydrate.sh` + dispatch-loop hydrate step, behind
+   `BENCH_BOARD_MODE=worktree-sync` (the default).
+4. **doctor / health-check** — report mode + hydrate health.
+5. **(Later) C** — §4 inventory behind `BENCH_BOARD_MODE=server`; no core changes.
+
+## 9. Spike findings (bd 1.0.4) — COURSE CORRECTION
+
+A live spike against **bd 1.0.4** (Bench's exact pinned version, embedded `Mode: direct`)
+invalidates the premise this whole doc was built on. Evidence:
+
+1. **Worktrees share the canonical board natively.** A plain `git worktree add` + `bd show <id>`
+   in the worktree returned the **canonical** bead — no hydrate, no redirect, no orphan auto-init.
+   bd's own help: *"Worktrees automatically share the same beads database as the main repository
+   via git common directory discovery — no manual redirect configuration needed."*
+2. **Worktree writes reach canonical, correctly attributed.** `bd comment`/`bd update
+   --actor=engineer` from a worktree landed on the main-tree board, tagged `engineer`.
+3. **Concurrent writes do not fail — the lock serializes.** 6/6 then **16/16** concurrent writes
+   from 4 worktrees (half targeting the *same* bead) all succeeded, **zero failures, zero lock
+   errors**; integrity intact. Wall ≈6.9s/16 → the single-writer lock adds latency under
+   contention but never drops a write.
+
+**Implication:** the `zero-bd-subagent` rule — and therefore both the elaborate Option B
+(hydrate/reconcile, §8) *and* Option C (server daemon, §4) — are **unnecessary to reach the four
+goals at small-to-moderate scale.** bd 1.0.4 already lets worktree agents read and write one shared
+embedded board safely. My §8 hydrate/reconcile design was solving a problem this bd version already
+solved.
+
+### 9.1 Revised recommendation — Option B′ (native shared embedded board)
+
+- **Drop the zero-bd-subagent rule.** Worktree agents run `bd` directly: read context from the
+  bead (`bd show <id>`), write their own handoff (`bd comment … --actor=<role>`) and status.
+- **Stay embedded.** No daemon, no `dolt` binary, no hydrate, no reconcile, **no new scripts**.
+- **Prefer `bd worktree create`** over raw `git worktree add` so the shared-DB wiring is guaranteed
+  by bd (and reaped via `bd worktree remove`).
+- The migration becomes **almost entirely prose** — the §8.4 "mode-agnostic core" (orchestrator
+  skill + agent defs + `CLAUDE.bench.md`) — and that prose is *identical* to what C would need, so
+  **the C path stays open as a pure transport swap** (install dolt, start server, set
+  `sync-mode: dolt-native`; agent contract unchanged). Exactly the C-forward seam, achieved for
+  free.
+
+### 9.2 Adversarial checks — RUN, both passed
+
+- **Why did Bench claim the opposite?** Almost certainly a pre-1.0 bd hazard (older versions could
+  orphan a worktree DB) that 1.0.4's git-common-dir discovery fixed — the rule outlived its cause.
+- **(a) Uncommitted-`.beads` worktree — PASS.** Even with `.beads/` *not* git-committed, a worktree
+  `bd show <id>` returned the canonical bead and created **no `embeddeddolt` orphan** in the
+  worktree. git-common-dir discovery holds in exactly the condition the old rule feared.
+- **(b) No hidden server — PASS.** `metadata.json` → `"dolt_mode": "embedded"`; no
+  `dolt-server.*`/socket/pid files; no `dolt sql-server` process. The server-runtime entries in
+  the default `.gitignore` are defensive only.
+- **Concurrency ceiling is real but high enough.** Serialized writes mean latency grows with
+  concurrent write frequency (≈430ms/write at 16-way contention). Fine for a handful of agents
+  doing periodic handoff writes (your stated scale); for *dozens* of high-frequency writers, server
+  mode (C) still wins. The ceiling, not correctness, is the only reason C ever becomes necessary.
+
+### 9.3 Revised sequencing
+
+1. **Adversarial edge-case checks (§9.2).** Cheap; confirms it's safe to drop the rule.
+2. **Mode-agnostic core rewrite** (skill + agent defs + template) to "agents run bd directly with
+   `--actor`." This is now ~all of the work, and it's low-risk prose.
+3. **Switch dispatch to `bd worktree create`/`remove`**; update `worktree-reap.sh`.
+4. **doctor / health-check** wording.
+5. **(Later, only if scale demands) Option C** — §4 inventory, unchanged by the above.
+
+## 10. Explicitly out of scope
 
 - **DoltHub** as a remote (we stay on GitHub `refs/dolt/*`). Could be added later purely as a
   browsable mirror without touching this design.
