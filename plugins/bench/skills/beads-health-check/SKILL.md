@@ -138,9 +138,22 @@ bd update <child> --parent <prefix-epic>     # the correct fix
 Re-parenting is a judgment call, so it's always flag-for-human even though the symptom
 is mechanical. Spell out the suspected child→epic mapping; let the human confirm.
 
-**Closure consistency.** Flag epics closed while children remain open, and open epics
-whose children are all closed (candidate to close). Report specific ids; closing is
-the human's call.
+**Closure consistency — scan by ID convention, NOT by edges.** Flag epics closed while
+children remain open, and open epics whose children are all closed (candidate to close).
+Report specific ids; closing is the human's call.
+
+> **Do not derive children from `parent-child` edges here.** Those edges are exactly
+> what a board rebuild drops (see the parent-edge check above), so an edge-based scan
+> goes **blind to the orphans that matter** — it cheerfully reports "no closed epics
+> with open children" while a closed epic still has an `in_progress` child hanging off
+> it (observed: a closed epic whose sole dotted child sat `in_progress`, missed because
+> its edge was gone). Instead, group by the **dotted-ID convention** — `epic.N` is a
+> child of `epic` regardless of whether an edge exists — and scan **every status, not
+> just open**: `bd list` defaults to open-only, so a *closed* epic never even appears
+> in the dump. Enumerate the full board (`bd list --status all --json`, and confirm it
+> wasn't truncated against `bd stats`), bucket issues by their `epic` prefix, and for
+> each bucket whose epic is `closed` flag any child not also `closed`. This catches the
+> orphans the edge-based progress bars cannot.
 
 #### Sync / export state
 - **`bd dolt pull`** when the remote ref is ahead — *safe auto-fix* (can't propagate
@@ -152,6 +165,12 @@ the human's call.
 - **`bd dolt push`** — *safe, but gated*. Only push after this run confirmed a clean
   board (no unresolved dups, no integrity flags). If the report isn't clean, flag the
   pending push instead of running it.
+- **`.beads/.cloud-push-failed` marker present** — *flag prominently*. The SessionEnd
+  cloud-push (web sessions) drops this breadcrumb when it could not get local bead
+  writes to the remote after retries — meaning the local board is **ahead of the remote
+  and at risk of reverting** on the next cold-container rehydrate. Surface it, run the
+  recovery push it names (`BD_SYNC_REMOTE="git+<origin>" bd dolt push`), and once the
+  remote has advanced, remove the marker.
 - **Committing `.beads/` changes**: stage **path-scoped** — `git add .beads/` — *never*
   `git add -A`/`git add .`. Sweeping in foreign untracked content is how a tree gets
   polluted.

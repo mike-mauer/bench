@@ -3,6 +3,32 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## 0.3.1 — durable bead writes (no more silent reversion)
+- **Fix: bead writes no longer silently revert on web sessions.** Closing a bead wrote
+  only to the local embedded Dolt DB; the single best-effort SessionEnd push that was
+  meant to carry it to the remote "cold board" swallowed its own failure, so if the
+  ephemeral container was reclaimed before SessionEnd — or the push just failed — the
+  write never landed. The next cold container then rehydrated (`beads-bootstrap.sh`)
+  from the **stale** remote and the write reverted (beads snapped back to `open` with
+  old timestamps). Two changes close this:
+  - **`beads-cloud-push.sh` is now push-FIRST with retry.** It pushes first (the live
+    container holds the good state; pulling a stale remote first is what merged the old
+    rows back), retries with exponential backoff, and only on a non-fast-forward
+    rejection does it pull+push to reconcile. A persistent failure now writes a durable
+    `.beads/.cloud-push-failed` marker and logs loudly instead of exiting 0 in silence.
+  - **New cloud-only `Stop` hook** runs the same script in `incremental` mode — a cheap,
+    push-only persist after every main-agent turn. Closes now reach the remote within
+    seconds, so a later cold-start has no stale state to revert to. Local sessions are
+    unaffected (still gated on `CLAUDE_CODE_REMOTE=true`).
+- **Health-check: closure-consistency now scans by ID convention, not edges.** The
+  "closed epic with open children" check read `parent-child` edges — exactly what a
+  board rebuild drops — so it returned a false "ok" while an orphaned child sat
+  `in_progress` under a closed epic. It now groups by the dotted-ID convention
+  (`epic.N`) across **all** statuses (`bd list` defaults to open-only), catching orphans
+  the edge-based progress bars can't see. The `.cloud-push-failed` marker is also a
+  flagged condition.
+- No `CLAUDE.bench.md` change — installed projects do **not** need to re-run `/bench:init`.
+
 ## 0.3.0 — custom roles (`/bench:new-agent`)
 - **New command `/bench:new-agent <name>`.** Scaffolds a project-owned, Bench-compliant
   Worker into `.claude/agents/<name>.md` from a generic template
