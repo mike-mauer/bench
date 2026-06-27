@@ -74,7 +74,7 @@ bd comment <id> "<my handoff block>" --actor=<role>
 bd update <id> --status=<next> --assignee=<next-role> --actor=<role>
 # reviewer pass → bd close <id> --actor=reviewer ; planner → its bead-spec as bd create/dep with --actor=planner
 ```
-`--actor` **must be passed inline on every command** — `BEADS_ACTOR` does not survive across shells. The next Worker reads these straight from the bead (`bd comments <id>`); nobody re-pastes them. Without correct `--actor`, every event collapses to one identity and the board shows a single card instead of `engineer → qa → reviewer`. **You (orchestrator) write only your own events** — intake beads, follow-ups, dep wiring — with `--actor=orchestrator`.
+`--actor` **must be passed inline on every command** — `BEADS_ACTOR` does not survive across shells. The next Worker reads these straight from the bead (`bd comments <id>`); nobody re-pastes them. Without correct `--actor`, every event collapses to one identity and the board shows a single card instead of `engineer → qa → reviewer`. **`--assignee` is load-bearing too:** bd has no per-gate status (every mid-pipeline hop is just `in_progress`), so a bead's *current gate* is read from `--assignee=<role>` + the latest handoff — **every transition MUST set `--assignee`**, or the next gate is ambiguous. **You (orchestrator) write only your own events** — intake beads, follow-ups, dep wiring — with `--actor=orchestrator`.
 
 ## Routing heuristics (which roles a bead needs)
 | Bead shape | Workers (in order) |
