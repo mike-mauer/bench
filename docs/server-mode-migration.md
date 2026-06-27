@@ -366,10 +366,16 @@ invalidates the premise this whole doc was built on. Evidence:
    via git common directory discovery — no manual redirect configuration needed."*
 2. **Worktree writes reach canonical, correctly attributed.** `bd comment`/`bd update
    --actor=engineer` from a worktree landed on the main-tree board, tagged `engineer`.
-3. **Concurrent writes do not fail — the lock serializes.** 6/6 then **16/16** concurrent writes
-   from 4 worktrees (half targeting the *same* bead) all succeeded, **zero failures, zero lock
-   errors**; integrity intact. Wall ≈6.9s/16 → the single-writer lock adds latency under
-   contention but never drops a write.
+3. **Concurrent writes do not fail or lose data.** 16/16 — and, under an independent adversarial
+   re-test, **up to 150-way** concurrent writes (same-bead, same-field, mixed
+   create/update/comment/close) — all returned exit 0 with **zero lost or duplicated writes**;
+   80 distinct `--actor` values preserved with no collapse. **Correction (mechanism):** this is
+   *not* a single-writer file lock. bd 1.0.4 **removed** the embedded flock (CHANGELOG
+   `[1.0.4]`, PR #3614: *"the process-lifetime exclusive flock on `.beads/embeddeddolt/` has been
+   removed; concurrent `bd` processes now open the embedded engine independently"*). Concurrent
+   safety is provided by the **Dolt driver's internal serialization**, not by beads. The flock had
+   existed to prevent a concurrent nil-deref panic (GH#2571); that panic class is now **latent** —
+   not reproducible in the spike, but the reason a future driver/version bump must be re-spiked.
 
 **Implication:** the `zero-bd-subagent` rule — and therefore both the elaborate Option B
 (hydrate/reconcile, §8) *and* Option C (server daemon, §4) — are **unnecessary to reach the four
@@ -382,8 +388,11 @@ solved.
 - **Drop the zero-bd-subagent rule.** Worktree agents run `bd` directly: read context from the
   bead (`bd show <id>`), write their own handoff (`bd comment … --actor=<role>`) and status.
 - **Stay embedded.** No daemon, no `dolt` binary, no hydrate, no reconcile, **no new scripts**.
-- **Prefer `bd worktree create`** over raw `git worktree add` so the shared-DB wiring is guaranteed
-  by bd (and reaped via `bd worktree remove`).
+- **Use the Agent tool's plain `git worktree add`** (the proven-safe path — git-common-dir
+  discovery works on it, verified incl. nested `.claude/worktrees/<id>`). **Do NOT recommend
+  `bd worktree create`:** it rejects any `.beads` under `$HOME` with *"BEADS_DIR points to unsafe
+  location"* (verified — fails for `/root/...`, succeeds only under `/tmp`), and real projects live
+  under home. Plain `bd create/show/comment` are unaffected by that guard.
 - The migration becomes **almost entirely prose** — the §8.4 "mode-agnostic core" (orchestrator
   skill + agent defs + `CLAUDE.bench.md`) — and that prose is *identical* to what C would need, so
   **the C path stays open as a pure transport swap** (install dolt, start server, set
@@ -400,10 +409,12 @@ solved.
 - **(b) No hidden server — PASS.** `metadata.json` → `"dolt_mode": "embedded"`; no
   `dolt-server.*`/socket/pid files; no `dolt sql-server` process. The server-runtime entries in
   the default `.gitignore` are defensive only.
-- **Concurrency ceiling is real but high enough.** Serialized writes mean latency grows with
-  concurrent write frequency (≈430ms/write at 16-way contention). Fine for a handful of agents
-  doing periodic handoff writes (your stated scale); for *dozens* of high-frequency writers, server
-  mode (C) still wins. The ceiling, not correctness, is the only reason C ever becomes necessary.
+- **Latency ceiling is real (and the only reason C ever becomes necessary).** Driver
+  serialization (not a lock) adds latency that grows with concurrent write frequency: ≈430ms/write
+  at 16-way, **≈540ms/op at 150-way** (≈81s wall for 150 ops, adversarial re-test). Fine for a
+  handful of agents doing periodic handoff writes (your stated scale); for *dozens* of
+  high-frequency writers it compounds, and server mode (C) wins. Correctness is not the limit —
+  latency is.
 
 ### 9.3 Revised sequencing
 
@@ -413,6 +424,23 @@ solved.
 3. **Switch dispatch to `bd worktree create`/`remove`**; update `worktree-reap.sh`.
 4. **doctor / health-check** wording.
 5. **(Later, only if scale demands) Option C** — §4 inventory, unchanged by the above.
+
+### 9.4 Independent adversarial review (subagent) — corrections folded in
+
+A separate subagent re-attacked claims 1–4 (web research + hands-on, up to 150-way concurrency,
+kill-mid-write, same-field lost-update races, close races, nested `.claude/worktrees/` paths,
+uncommitted-`.beads`). **Data-integrity foundation held** — it could not lose or corrupt a write.
+But it caught three wrong *premises*, now corrected above and in §11 (all independently re-verified
+against the binary):
+
+1. **Mechanism was wrong** — bd 1.0.4 removed the flock (PR #3614); safety is Dolt-driver
+   serialization, GH#2571 latent. (§9 item 3, §11.6)
+2. **`bd worktree create` is broken under `$HOME`** — use plain `git worktree add`. (§9.1, §11.3.A)
+3. **`issues.jsonl`/`interactions.jsonl` resurrection warning is still live** — keep it, don't
+   delete. (§11.3.A)
+Plus: `bd doctor` unsupported in embedded (§11.3.D); C lifecycle has open reliability bugs (§11.4);
+`.lock` always present idle (§11.3.D). *Conclusion: build B′; the three corrected premises were the
+only flaws.*
 
 ## 11. Option B′ implementation plan (live plan, C-forward)
 
@@ -466,12 +494,18 @@ flip to Option C (server) touches *only* lifecycle scripts + one config knob —
   comment + status transition with `--actor=<role>`."** Keep the handoff *block format* verbatim —
   it's still the inter-agent contract.
 - **Worktree isolation** (~107–118): **keep the rule, narrow the reason** to code isolation (don't
-  move shared HEAD, don't trip hooks). **Delete** the board-corruption rationale and the
-  `issues.jsonl`-resurrection warning (obsolete). Note plain Agent-tool worktrees already get
-  git-common-dir discovery; `bd worktree create` is optional, not required.
+  move shared HEAD, don't trip hooks). **Delete only the board-corruption / auto-init rationale**
+  (obsolete — git-common-dir discovery, §9). Use plain `git worktree add` (NOT `bd worktree
+  create`, which fails under `$HOME`).
+- **KEEP and EXTEND the `issues.jsonl`-resurrection warning** — *do not delete it.* The board stays
+  **embedded** (not dolt-native), and both `.beads/issues.jsonl` **and `.beads/interactions.jsonl`**
+  are git-tracked and auto-exported by a `.beads/hooks/pre-commit` on every commit (verified). A
+  worktree branch carries a *stale* snapshot and can revert board transitions on merge. The
+  resurrection footgun is **live**; reword its rationale from "dolt-native makes it moot" to "still
+  required while embedded," and cover both JSONLs.
 - **Bounce cap, routing heuristics, model policy:** unchanged.
-- **`issues.jsonl` rule:** keep "Workers don't commit `.beads/`; re-export from canonical after a
-  feature merge" — still valid, harmless.
+- **`.beads/` commit discipline:** keep "Workers don't commit `.beads/`; re-export from canonical
+  after a feature merge" — now load-bearing (see above), and it must include `interactions.jsonl`.
 
 **B. Agent defs** (`engineer`, `qa`, `reviewer`, `planner`, +optional `data-eng`, `design-reviewer`)
 - Replace the "you are a subagent, run ZERO bd, embedded single-writer/auto-init hazard" paragraph
@@ -492,8 +526,10 @@ flip to Option C (server) touches *only* lifecycle scripts + one config knob —
 
 **D. `commands/doctor.md` + `skills/beads-health-check/SKILL.md`** (light)
 - doctor: add a one-liner confirming a worktree can reach the board (`bd show` from a temp worktree)
-  and report `BENCH_BOARD_MODE`. health-check: note embedded is the supported default; server is the
-  scale-up path.
+  and report `BENCH_BOARD_MODE`. **Do NOT use `bd doctor`** for this — it returns *"not yet
+  supported in embedded mode."* health-check: note embedded is the supported default; server is the
+  scale-up path. **Do not flag `.beads/embeddeddolt/.lock` as stale** — that file is always present
+  in normal idle operation (noms), not a wedged-lock signal.
 
 ### 11.4 The C migration, preserved
 
@@ -504,8 +540,15 @@ flip to C with **zero agent/skill-contract changes**:
 2. Set `sync-mode: dolt-native`, `bd init --server`.
 3. Agents are unchanged — "read the board / write with `--actor`" is already true against a server.
 
-**Trigger to flip:** sustained handoff-write latency from lock contention (≈430ms/write at 16-way in
-the spike) becoming material, or a move to autonomous self-claim from a shared queue.
+**Caveat — C is not "zero-risk," only "zero agent-edits."** The agent/skill contract is unchanged,
+but server-mode's *lifecycle* has open reliability bugs: nondeterministic auto-start with
+stale-lock/process races leaving the tracker unreachable (GH#3392, open), a doctor restart loop
+spawning zombie dolt procs (GH#2636), and stale noms `LOCK` after doctor (GH#1925). The C transport
+needs hardening; it is not a flip-and-forget switch.
+
+**Trigger to flip:** sustained handoff-write latency from **driver serialization** (≈540ms/op at
+150-way in the adversarial re-test) becoming material, or a move to autonomous self-claim from a
+shared queue.
 
 ### 11.5 Phases & acceptance
 
@@ -527,8 +570,14 @@ the spike) becoming material, or a move to autonomous self-claim from a shared q
   round-trips. Keep that read in the loop.
 - **Drift-hash churn.** Changing `CLAUDE.bench.md` nudges every installed project to re-run
   `/bench:init`. Call it out in the changelog.
-- **Stale-version regression.** The native-sharing behavior is verified for **bd 1.0.4**. If
-  `bd_version` is bumped, re-run the §9 spike before trusting it. Pin remains 1.0.4.
+- **Version-fragility is load-bearing, not incidental.** The concurrency *safety mechanism changed
+  within the pinned line*: bd 1.0.4 removed the embedded flock (PR #3614) and now relies on the
+  Dolt driver's internal serialization, with the GH#2571 concurrent nil-deref panic class **latent**
+  behind it. So re-running the §9 spike on **any** `bd_version` bump is mandatory, not a nicety —
+  a driver regression could resurface #2571 under exactly our access pattern. **Pin stays 1.0.4**
+  until a bump is spiked.
+- **Two git-tracked JSONLs, not one.** `issues.jsonl` *and* `interactions.jsonl` both carry the
+  stale-snapshot/merge-resurrection profile (§11.3.A). Any worktree `.beads/` commit is a hazard.
 
 ## 12. Explicitly out of scope
 
