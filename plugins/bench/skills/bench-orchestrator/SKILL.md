@@ -1,6 +1,6 @@
 ---
 name: bench-orchestrator
-description: The Bench orchestration playbook — how the main session routes work through the planner→engineer→qa→reviewer agent pipeline using beads. Use when acting as the orchestrator: decomposing work into beads, spawning role Workers, routing the handoffs they record themselves, enforcing the bounce cap, and isolating code Workers in worktrees. Read this before dispatching any multi-step engineering work through the agents.
+description: "The Bench orchestration playbook — how the main session routes work through the planner→engineer→qa→reviewer agent pipeline using beads. Use when acting as the orchestrator: decomposing work into beads, spawning role Workers, routing the handoffs they record themselves, enforcing the bounce cap, and isolating code Workers in worktrees. Read this before dispatching any multi-step engineering work through the agents."
 ---
 
 # Orchestrator Playbook (Bench harness)
@@ -86,8 +86,12 @@ bd update <id> --status=<next> --assignee=<next-role> --actor=<role>
 | UI bead that also moves data | `engineer` + `data-eng` → `qa` → `design-reviewer` → `reviewer` |
 | Auth / security / boundary-risky | builder → `qa` → `reviewer` (reviewer on **opus**) |
 | Decompose an approved plan | `planner` (then dispatch the beads it files) |
+| Concern covered by a custom role | insert the custom role at the position its `## Routing` declares (see below) |
 
 Defaults, not rails — add/drop a hop per bead. When in doubt, keep `reviewer` (the only role that closes). **Why pure-data beads can skip `qa`:** if the dev environment can't reach the real data store, a `qa` hop only confirms rendering, not numeric correctness — route a data bead through `qa` only when it has a user-observable surface. The unit/golden-fixture tests are `qa`'s replacement on pure-data beads.
+
+### Custom / project-defined roles
+The role set is **open**: a project can add its own roles with `/bench:new-agent`, which writes a Bench-compliant Worker to `.claude/agents/<name>.md`. **Discover them — don't assume the table above is exhaustive.** Once per session (and whenever a bead's concern isn't cleanly covered by a built-in), **list `.claude/agents/`** and, for any role beyond `planner`/`engineer`/`qa`/`reviewer`/`data-eng`/`design-reviewer`, read its frontmatter `description` and its `## Routing` block. That block tells you everything needed to place it: its **kind** (`builder` → gets a worktree + runs a TDD loop, like `engineer`; `gate` → reviews/verifies, writes no code, like `design-reviewer`), the bead shape it should **spawn** on, where it **sits** in the pipeline, its pass/fail `NEXT`, and whether it **needs a worktree**. Slot it accordingly, spawn it the same way as any built-in (`isolation: "worktree"` if it needs feature code; `--actor=<name>` on its bd writes), and apply the same bounce cap. A custom role does **not** close beads unless its `## Routing` says it is the closing gate — by default `reviewer` still closes. Custom roles register purely by their presence in `.claude/agents/`; there is no managed-block edit, so they are unaffected by `/bench:init` refreshes.
 
 ## Bounce cap — escalate instead of looping (you enforce this; the gates can't)
 `qa` and `reviewer` run an **adversarial** posture. Their own brakes (a FAIL needs a concrete reproducible defect; only **Blocking** issues bounce) keep most beads from ping-ponging. The **third brake is yours**, because the gates are ephemeral subagents that can't see a bead's history — only you persist. The gates now record their own pass/fail on the bead, so **read `bd show <id>` after each return** to count round-trips — don't rely on memory.
