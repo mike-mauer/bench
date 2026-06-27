@@ -10,12 +10,20 @@
         ]
       }
     ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/beads-cloud-push.sh\" incremental" }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "matcher": "",
         "hooks": [
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/beads-stop-guard.sh\"" },
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/beads-cloud-push.sh\"" }
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/beads-cloud-push.sh\" final" }
         ]
       }
     ]

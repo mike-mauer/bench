@@ -71,7 +71,8 @@ plugins/bench/
 ├── skills/            bench-orchestrator · beads-health-check
 ├── commands/          init · doctor                            (/bench:init, /bench:doctor)
 ├── hooks/hooks.json   SessionStart: install-bd, worktree-reap, drift-check
-│                       SessionEnd: stop-guard, cloud-push   (NOT bd prime — from beads dep)
+│                       Stop: cloud-push (incremental)           (web-only bead persist)
+│                       SessionEnd: stop-guard, cloud-push (final)   (NOT bd prime — from beads dep)
 ├── scripts/           the hook implementations
 └── templates/         CLAUDE.bench.md · custom-agent.md  (block + custom-role scaffold)
 ```
