@@ -10,7 +10,10 @@
 # This detects a cold board and rehydrates it from origin. It is:
 #   • bd-safe     — a no-op when bd isn't installed yet;
 #   • idempotent  — skips entirely when the board is already hydrated;
-#   • conservative— only ever clears a board bd EXPLICITLY reported as empty ("0");
+#   • conservative— clears the local engine ONLY when bd EXPLICITLY reported an
+#                   empty board ("0") AND a recovery source is PROVEN to exist
+#                   first (origin refs/dolt/data, or a committed non-empty
+#                   issues.jsonl). Never "delete, then hope" (Bench-rm4);
 #   • best-effort — every path exits 0; it must never wedge session start.
 #
 # Invoked by install-bd.sh once the bd binary has landed (so a slow clone never
@@ -39,14 +42,34 @@ log "cold board detected — rehydrating from git origin…"
 # A normal clone does not fetch custom refs; bring origin's Dolt history in.
 git fetch origin 'refs/dolt/*:refs/dolt/*' 2>/dev/null || true
 
-# Only clear the local DB when bd EXPLICITLY reported an empty board ("0").
-if [ "$count" = "0" ]; then
+# DESTRUCTIVE-CLEAR SAFETY GATE (Bench-rm4).
+# Never remove the local engine unless a recovery source is PROVEN to exist first.
+# "Delete, then hope" loses the board when origin carries no refs/dolt/data and
+# issues.jsonl was never committed. A recovery source is either:
+#   (a) refs/dolt/data on origin (or already fetched into a local ref above), or
+#   (b) a committed, NON-EMPTY .beads/issues.jsonl at HEAD.
+recovery_source=""
+if git rev-parse --verify -q refs/dolt/data >/dev/null 2>&1 \
+   || git ls-remote --exit-code origin 'refs/dolt/data' >/dev/null 2>&1; then
+  recovery_source="dolt-ref"
+elif git cat-file -e HEAD:.beads/issues.jsonl 2>/dev/null \
+     && [ "$(git cat-file -s HEAD:.beads/issues.jsonl 2>/dev/null || echo 0)" -gt 0 ] 2>/dev/null; then
+  recovery_source="jsonl-export"
+fi
+
+# Clear the local engine ONLY when bd reported "0" AND recovery is proven.
+if [ "$count" = "0" ] && [ -n "$recovery_source" ]; then
+  log "recovery source present ($recovery_source) — clearing cold engine before rehydrate."
   rm -rf .beads/embeddeddolt .beads/dolt 2>/dev/null || true
+elif [ "$count" = "0" ]; then
+  log "WARNING: cold board but NO recovery source — refusing to clear the local engine."
+  log "WARNING: your only copy may be local. Run 'bd dolt push' and commit .beads/issues.jsonl."
 fi
 
 # Blanking BD_SYNC_REMOTE makes bootstrap skip any unreachable configured remote
 # and auto-detect the reachable git origin (refs/dolt/data), falling back to the
-# committed issues.jsonl export if origin carries no Dolt data.
+# committed issues.jsonl export if origin carries no Dolt data. With neither source
+# this is a safe no-op — nothing was deleted above.
 if BD_SYNC_REMOTE="" bd bootstrap --yes >/dev/null 2>&1; then
   log "rehydrate complete."
 else

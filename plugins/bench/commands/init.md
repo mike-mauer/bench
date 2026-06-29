@@ -36,8 +36,23 @@ The block is delimited so it can be refreshed idempotently on future runs.
 1. If a `.beads/` directory already exists, skip init; just confirm `bd ready` works.
 2. Otherwise run `bd init` (the beads plugin provides `bd`). Set the issue prefix from
    `--prefix` if given, else ask the user for a short PascalCase prefix. Ensure
-   `.beads/issues.jsonl` is created and staged for commit.
-3. Do NOT configure a GitHub sync token here — leave it env-only (the health-check skill
+   `.beads/issues.jsonl` is created and **committed** (not merely staged — `bd init`
+   auto-commits the beads files; verify with `git cat-file -s HEAD:.beads/issues.jsonl`).
+3. **Establish the portable rehydrate source on origin.** The whole harness assumes the
+   board's Dolt history lives on the git `origin` under `refs/dolt/data` (every cold-start
+   rehydrate in `scripts/beads-bootstrap.sh` depends on it). `bd init` does NOT create it,
+   and the cloud-push hook is web-only — so a local-only board has **no recovery source**
+   unless this step runs. If the repo has an `origin` remote:
+   ```bash
+   git remote get-url origin >/dev/null 2>&1 && {
+     bd dolt remote add origin "$(git remote get-url origin)" 2>/dev/null || true
+     bd dolt push 2>&1   # writes refs/dolt/data to origin
+   }
+   ```
+   Then confirm it landed: `git ls-remote origin 'refs/dolt/*'` must return a ref. If the
+   repo has no origin yet, tell the user the board is **local-only and not yet recoverable**,
+   and to re-run `bd dolt push` once an origin exists.
+4. Do NOT configure a GitHub sync token here — leave it env-only (the health-check skill
    explains why). Do NOT run `bd github sync`.
 
 ## Step 3 — Fix project settings (de-dupe hooks)

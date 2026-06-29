@@ -17,6 +17,15 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
    dependency enabled. Missing beads → ⚠️ (`claude plugin install beads@beads-marketplace`).
 3. **Beads board** — `.beads/` exists and `bd ready` returns without error. Cold/empty board
    → note the `beads-bootstrap` hook rehydrates it, or run `bd bootstrap` manually.
+   - **Rehydrate recoverability (RED)** — the `beads-bootstrap` hook can clear the local
+     engine, so verify a recovery source exists: either origin carries `refs/dolt/data`
+     (`git ls-remote --exit-code origin 'refs/dolt/data'`) **or** a committed non-empty
+     export (`git cat-file -s HEAD:.beads/issues.jsonl` > 0). **Neither → 🔴** the board is
+     local-only and unrecoverable; fix: `bd dolt remote add origin <url>` + `bd dolt push`,
+     and commit `.beads/issues.jsonl`.
+   - **Engine location** — if `bd dolt show` resolves the engine under `~/.beads/` (global
+     `beads_global` / `shared-server`) instead of repo-local `.beads/embeddeddolt`, ⚠️
+     recommend a repo-local engine (a shared engine widens the bootstrap blast radius).
 4. **CLAUDE.md block** — `CLAUDE.md` contains a `<!-- BEGIN BENCH ... -->` block. Extract its
    `hash:` and compare to the bundled template's hash:
    ```bash
