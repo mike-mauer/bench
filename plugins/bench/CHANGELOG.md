@@ -3,6 +3,24 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## 0.3.2 — context belongs on the bead, not the dispatch prompt
+- **Orchestrator: a context-placement rule + tripwire on the dispatch step.** Step 5 now names
+  the three kinds of context and their homes — **spec** (scope, acceptance criteria, security/
+  correctness boundary, non-goals) on the bead **description**, **pipeline** (prior handoffs, env
+  notes) in bead **comments**, **runtime/operational** (facts that didn't exist at plan time) in
+  the prompt — and a tripwire: if you're about to paste `## Scope`/`## Hard rules`/acceptance
+  criteria/the handoff format into a Worker prompt, stop and enrich the bead instead. The quality
+  rationale: a boundary stated only in the prompt is invisible to the `reviewer` that exists to
+  enforce it, because the prompt evaporates and the bead is what every downstream gate reads.
+- **Planner: an explicit self-sufficiency bar (decomposition rule 9).** A bead is done when a
+  Worker can start from `bd show` + `bd comments` + its role def alone, with nothing in the prompt
+  but id + role. Spec-context the builder needs goes in the description; if the orchestrator has to
+  explain scope at spawn time, the bead was underspecified — a bug in the planner's output.
+- **Health-check: `bd lint` now frames missing spec sections as a self-sufficiency failure**,
+  flagging underspecified beads to enrich before dispatch rather than patch in a one-shot prompt.
+- No `CLAUDE.bench.md` change — installed projects do **not** need to re-run `/bench:init`; pick up
+  the updated planner/orchestrator/health-check guidance via `claude plugin update`.
+
 ## 0.3.1 — durable bead writes (no more silent reversion)
 - **Fix: bead writes no longer silently revert on web sessions.** Closing a bead wrote
   only to the local embedded Dolt DB; the single best-effort SessionEnd push that was

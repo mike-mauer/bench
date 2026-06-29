@@ -183,7 +183,11 @@ Report specific ids; closing is the human's call.
 #### Orphans, stale, lint — flag with specifics
 - **Orphans** (broken dep references): *flag* with the exact `bd dep`/`bd update` fix.
 - **Stale** issues: *report* the list; don't auto-close.
-- **Lint** (missing template sections): *report* which issues and sections.
+- **Lint** (missing template sections): *report* which issues and sections. A bead missing its
+  spec sections (`## Acceptance criteria`, `## Out of scope`, `## Notes for the builder`) fails the
+  **self-sufficiency bar** — a Worker shouldn't need the dispatch prompt to explain scope or rules
+  (see `planner` decomposition rule 9). Flag these as underspecified so they're enriched on the bead
+  before dispatch, not patched in a one-shot prompt the downstream gates never see.
 
 #### Destructive maintenance — ALWAYS flag
 `bd prune`, `bd purge`, `bd gc`, `bd compact`, `bd flatten`, `bd delete`,
