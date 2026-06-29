@@ -55,6 +55,16 @@ The board is a single **embedded** engine (`Mode: direct`) in the main checkout'
 3. **Pick the model** per Worker (model policy below).
 4. **Claim + assign:** `bd update <id> --claim --assignee=<role> --actor=orchestrator`. You set the work up; you do **not** gather and paste context — the Worker reads it from the bead itself.
 5. **Spawn the Worker(s)** via the `Agent` tool. Any Worker that needs the feature code — `engineer`, `data-eng`, `qa`, `design-reviewer` — **MUST** get `isolation: "worktree"` (not optional). `planner`/`reviewer` don't need a worktree. Independent beads → spawn in parallel. Into each Worker's prompt pass only **the bead id + its role** (plus any cross-cutting context that isn't on the bead). The Worker runs `bd show <id>` and `bd comments <id>` itself to read the spec + prior handoffs — **the bead is the context**, so there is no thread to curate or re-paste (this also kills the old O(n²) re-paste growth).
+
+   **Where context lives (decide before you type the prompt).** Three kinds, three homes — the prompt gets only the third:
+
+   | Kind of context | Example | Home | Who writes it |
+   |---|---|---|---|
+   | **Spec** — scope, acceptance criteria, security/correctness boundary, non-goals, files likely involved | the tables to create; "parameterize all SQL"; "don't build the callback" | bead **description** | `planner` |
+   | **Pipeline** — prior handoffs, env-wiring notes, the public interface a prior bead exposed | "see the Penn-st9.1 env note" | bead **comments** | each role's handoff |
+   | **Runtime/operational** — facts that did not exist at plan time | "a prior attempt died mid-run, nothing saved"; live `vercel link …` commands for *this* worktree | the **prompt** (or a fresh bead comment if it'll outlive this run) | you |
+
+   **Tripwire:** if you're about to paste a `## Scope`, `## Hard rules`, acceptance criteria, or the handoff format into a Worker prompt — **stop.** That's spec-context; it belongs on the bead, where *every* downstream gate (qa, reviewer, the next builder) reads it — not in a prompt that one Worker sees and then evaporates. Enrich the bead (or bounce it back to `planner` to do so), then dispatch with the thin prompt. The reason this is a quality rule and not just a token rule: a security boundary stated only in the prompt is invisible to the `reviewer` whose job is to enforce it.
 6. **Read the return** (the Worker's handoff block / spec list / verdict), then **read the bead** (`bd show <id>`) to confirm the Worker recorded its own handoff + advanced status. The Worker writes; you verify.
 7. **Route + integrate (you don't relay writes):** the Worker has already posted its handoff and advanced status with `--actor=<role>`. You: confirm the transition is sane, **file new beads** for any FYI/follow-up it surfaced (`--actor=orchestrator`), and integrate (push / open PR). Then dispatch the next role — or, on the reviewer's pass, confirm the bead is closed (the reviewer closes it itself, `--actor=reviewer`). Repeat until closed.
 
