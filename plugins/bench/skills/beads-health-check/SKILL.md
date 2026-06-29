@@ -175,6 +175,22 @@ Report specific ids; closing is the human's call.
   `git add -A`/`git add .`. Sweeping in foreign untracked content is how a tree gets
   polluted.
 
+#### Rehydrate recoverability — the RED invariant (data-loss exposure)
+The cold-start hook (`scripts/beads-bootstrap.sh`) can clear the local Dolt engine and
+rehydrate from a remote/export. That is only safe if a **recovery source actually exists**.
+Assert the invariant: **destructive bootstrap reachable + no recovery source = RED.**
+- **Recovery source present?** Either origin carries `refs/dolt/data`
+  (`git ls-remote --exit-code origin 'refs/dolt/data'`) **or** a committed, non-empty
+  export exists (`git cat-file -s HEAD:.beads/issues.jsonl` > 0).
+- If **neither** holds, emit a **RED** finding: the board exists only in the local engine
+  and a cold-start (or a misresolved empty DB) could destroy it unrecoverably. Repair:
+  `bd dolt remote add origin <origin-url>` then `bd dolt push`, and commit `.beads/issues.jsonl`.
+- **Shared/global engine** — *flag*. If `bd dolt show` resolves the engine under
+  `~/.beads/` (global `beads_global` / `shared-server`) rather than a repo-local
+  `.beads/embeddeddolt`, report it: a shared engine gives the destructive bootstrap
+  cross-project blast radius and is the component most prone to corruption. Recommend a
+  repo-local engine.
+
 #### Backups / artifacts
 - **`.beads/backup/` growth** — *flag for human*, never auto-prune. Report count/size.
 - **Stray/legacy artifacts** (loose `*.db`, old `*.jsonl`) — *report*; deletion is the
