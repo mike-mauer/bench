@@ -34,11 +34,26 @@ command_str="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/de
 cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"
 [ -n "$cwd" ] || cwd="$PWD"
 
+# Split on ;, &&, and ||. Deliberately does NOT split on raw newlines: a
+# multi-line QUOTED argument (a commit message body, a heredoc body)
+# routinely contains lines that start with "git checkout"/"switch"/
+# "restore" purely as prose — e.g. `git commit -m "fix parser\ngit checkout
+# was mishandled"` or a heredoc body mentioning "git checkout" in its text.
+# Splitting on bare newlines without quote/heredoc awareness turns that
+# prose into its own bogus "command segment" and falsely denies a command
+# that never actually invokes checkout/switch/restore (Bench-y4h round 1).
+# The trade-off: a real newline-separated command chain outside of any
+# quoting is now treated as a single segment; false-allow is the tolerable
+# direction for this guard, false-deny (blocking legitimate work) is not.
 split_git_segments() {
-  # Trailing newline required: bash 3.2 (macOS default /bin/bash) silently
-  # drops the final line of a `read` loop fed by process substitution when
-  # the producer's output doesn't end in \n.
-  printf '%s\n' "$1" | tr ';\n' '\n\n' | sed -E 's/&&|\|\|/\n/g'
+  # NUL-delimited, not newline-delimited: `read` terminates a field on ANY
+  # newline byte, so routing separators through \n can never coexist with
+  # preserving a real newline that occurs INSIDE a segment (a quoted
+  # commit-message body, a heredoc body). NUL cannot appear in a shell
+  # command string, so it's a safe, unambiguous delimiter. The trailing ';'
+  # guarantees the final segment is itself NUL-terminated — `read -d ''`
+  # drops an unterminated final field otherwise.
+  printf '%s;' "$1" | sed -E 's/&&|\|\|/;/g' | tr ';' '\000'
 }
 
 # Escape hatch, hook-process env.
@@ -59,7 +74,7 @@ fi
 # it (skipping simple `git -C <dir>` / `--flag[=value]` forms) must be one
 # of checkout/switch/restore.
 command_invokes_checkout=0
-while IFS= read -r segment; do
+while IFS= read -r -d '' segment; do
   [ -n "$segment" ] || continue
 
   # Strip leading VAR=value assignments.

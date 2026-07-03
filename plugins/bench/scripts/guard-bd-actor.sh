@@ -24,17 +24,34 @@ tool_name="$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)"
 command_str="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 [ -n "$command_str" ] || exit 0
 
-# A command may chain multiple invocations with &&, ||, ;, or newlines.
-# Evaluate each segment independently: a compliant `bd show ... --actor=x`
-# must not shield a later non-compliant `bd close ...` in the same command.
-# This is a best-effort lexical split (adequate for the shapes agents emit:
+# A command may chain multiple invocations with &&, ||, or ;. Evaluate each
+# segment independently: a compliant `bd show ... --actor=x` must not
+# shield a later non-compliant `bd close ...` in the same command. This is
+# a best-effort lexical split (adequate for the shapes agents emit:
 # straightforward chaining, not deliberately obfuscated shell).
+#
+# Deliberately does NOT split on raw newlines. A multi-line QUOTED argument
+# (a commit message body, a heredoc body) routinely contains lines that
+# start with a guarded token purely as prose — e.g.
+# `bd comment X --actor=r "line one\nbd close Y"` or
+# `git commit -m "impl guard\nbd close Bench-1 after merge"`. Splitting on
+# bare newlines without quote/heredoc awareness turns that prose into its
+# own bogus "command segment" and falsely denies a compliant or unrelated
+# command (Bench-y4h round 1). The trade-off: a real newline-separated
+# command chain outside of any quoting (`bd show X --actor=e\nbd close Y`)
+# is now treated as a single segment and allowed if ANY --actor appears in
+# it. False-allow is the tolerable direction for this convention guard;
+# false-deny (blocking legitimate work) is not.
 split_segments() {
-  # Trailing newline is required: some bash/read implementations (notably
-  # bash 3.2, macOS's default /bin/bash) silently drop the final line of a
-  # `read` loop fed by process substitution when the producer's output
-  # doesn't end in \n.
-  printf '%s\n' "$1" | tr ';\n' '\n\n' | sed -E 's/&&|\|\|/\n/g'
+  # NUL-delimited, not newline-delimited: `read` terminates a field on ANY
+  # newline byte, so routing separators through \n can never coexist with
+  # preserving a real newline that occurs INSIDE a segment (a quoted
+  # commit-message body, a heredoc body). NUL cannot appear in a shell
+  # command string, so it's a safe, unambiguous delimiter. The trailing ';'
+  # guarantees the final segment is itself NUL-terminated — `read -d ''`
+  # drops an unterminated final field otherwise (the same class of bug
+  # already hit once with newline-terminated `read`).
+  printf '%s;' "$1" | sed -E 's/&&|\|\|/;/g' | tr ';' '\000'
 }
 
 is_write_verb() {
@@ -50,7 +67,7 @@ has_actor_flag() {
   printf '%s' "$1" | grep -Eq -- '(^|[[:space:]])--actor(=|[[:space:]])'
 }
 
-while IFS= read -r segment; do
+while IFS= read -r -d '' segment; do
   [ -n "$segment" ] || continue
 
   # Strip leading VAR=value assignments (e.g. `PATH=... bd ...`), same
