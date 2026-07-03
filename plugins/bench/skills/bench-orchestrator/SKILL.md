@@ -53,7 +53,7 @@ The board is a single **embedded** engine (`Mode: direct`) in the main checkout'
 1. **Pick ready work:** `bd ready` (respect deps; don't start a bead whose deps are open).
 2. **Decide which roles it needs** (routing heuristics below) — not every bead needs every role.
 3. **Pick the model** per Worker (model policy below).
-4. **Claim + assign:** `bd update <id> --claim --assignee=<role> --actor=orchestrator`. You set the work up; you do **not** gather and paste context — the Worker reads it from the bead itself.
+4. **Claim + assign:** `bd update <id> --claim --assignee=<role> --actor=orchestrator`. You set the work up; you do **not** gather and paste context — the Worker reads it from the bead itself. (Verified semantics, `cmd/bd/update.go`: `--claim` runs a compare-and-swap claim as the `--actor` first, then `--assignee` overwrites the assignee — with `--actor=orchestrator` and `--assignee=<role>` that's intentional, but note the CAS guard is evaluated against the actor, not the final assignee.)
 5. **Spawn the Worker(s)** via the `Agent` tool. Any Worker that needs the feature code — `engineer`, `data-eng`, `qa`, `design-reviewer` — **MUST** get `isolation: "worktree"` (not optional). `planner`/`reviewer` don't need a worktree. Independent beads → spawn in parallel. Into each Worker's prompt pass only **the bead id + its role** (plus any cross-cutting context that isn't on the bead). The Worker runs `bd show <id>` and `bd comments <id>` itself to read the spec + prior handoffs — **the bead is the context**, so there is no thread to curate or re-paste (this also kills the old O(n²) re-paste growth).
 
    **Where context lives (decide before you type the prompt).** Three kinds, three homes — the prompt gets only the third:
@@ -78,6 +78,9 @@ FYI: <role(s) or none> — <what they should know>
 BLOCKERS: <none | description>
 <role-specific evidence>
 ```
+**STATUS vocabulary is per-role — parse accordingly:** `engineer` reports `done|blocked`; `qa`
+and `reviewer` report `pass|fail`; a custom role (per its `## Routing` block) reports whichever
+of `done|pass|fail|blocked` fits its kind (`builder` → `done|blocked`, `gate` → `pass|fail`).
 **One rule: each role writes its own handoff.** Before it terminates, every Worker posts its block to the bead and advances status, tagging the write with its own role:
 ```bash
 bd comment <id> "<my handoff block>" --actor=<role>
@@ -140,7 +143,10 @@ A SessionEnd guard warns on unfiled/unpushed work — but you're responsible:
 1. Every actionable item discussed has a bead.
 2. Quality gates ran on changed code (tests/lint/build).
 3. Bead statuses reflect reality; finished work closed.
-4. `git push` succeeded and `git status` is clean.
+4. **Commit locally** — leave changed work in small, focused commits. **Push / open PRs only
+   with explicit authority.** Conservative is the default: report what's ready and the exact
+   commands (`git push`, `gh pr create …`), and run them only if the user granted authority
+   this session or the project has explicitly opted in.
 
 ## Reading list at session start
 This playbook · `CLAUDE.md` (conventions, services) · the role agent defs · `bd ready` / `bd list` (what's in flight).
