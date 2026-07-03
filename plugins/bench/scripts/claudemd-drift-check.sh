@@ -15,13 +15,20 @@ set -uo pipefail
 log() { printf '[bench-drift] %s\n' "$*" >&2; }
 
 PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
-TEMPLATE="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/templates/CLAUDE.bench.md"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+TEMPLATE="$PLUGIN_ROOT/templates/CLAUDE.bench.md"
 CLAUDEMD="$PROJECT/CLAUDE.md"
 
 [ -f "$TEMPLATE" ] || exit 0
 
-# Portable 8-char content hash (sha256sum on Linux, shasum -a 256 on macOS).
+# Portable 8-char content hash. Canonical implementation lives in
+# scripts/bench-hash.sh (shared with /bench:init and /bench:doctor so all three
+# agree on the fallback chain); the inline copy below is a same-chain fallback
+# so a missing helper can't break this hook.
 hash_file() {
+  if [ -f "$PLUGIN_ROOT/scripts/bench-hash.sh" ]; then
+    bash "$PLUGIN_ROOT/scripts/bench-hash.sh" "$1" 2>/dev/null && return 0
+  fi
   if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -c1-8
   elif command -v shasum    >/dev/null 2>&1; then shasum -a 256 "$1" | cut -c1-8
   else cksum "$1" | awk '{print $1}'; fi

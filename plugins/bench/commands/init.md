@@ -20,10 +20,10 @@ and optional agents at `${CLAUDE_PLUGIN_ROOT}/agents-optional/`.
 ## Step 1 — Inject the orchestrator rules into CLAUDE.md (versioned marker block)
 The block is delimited so it can be refreshed idempotently on future runs.
 
-1. Compute the template's 8-char content hash (same method the drift-check hook uses):
+1. Compute the template's 8-char content hash (via the canonical helper the drift-check
+   hook and `/bench:doctor` also use, so all three always agree on the format):
    ```bash
-   if command -v sha256sum >/dev/null 2>&1; then H=$(sha256sum "${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md" | cut -c1-8)
-   else H=$(shasum -a 256 "${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md" | cut -c1-8); fi; echo "$H"
+   H=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/bench-hash.sh" "${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md"); echo "$H"
    ```
 2. Build the block: a `<!-- BEGIN BENCH v:1 hash:$H -->` line, then the **verbatim contents**
    of `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md`, then a `<!-- END BENCH -->` line.
