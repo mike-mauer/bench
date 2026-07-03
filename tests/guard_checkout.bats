@@ -53,6 +53,17 @@ run_guard_in() {
   run bash -c "cd \"$1\" && printf '%s' '$(payload "$2" "$1")' | \"$SCRIPT\""
 }
 
+# JSON-safe variant for command strings containing quotes/special chars
+# (e.g. a commit message). Builds the payload with jq instead of naive
+# printf substitution.
+run_guard_in_safe() {
+  # $1 = cwd, $2 = command
+  local json
+  json="$(jq -n --arg cwd "$1" --arg cmd "$2" \
+    '{hook_event_name:"PreToolUse",cwd:$cwd,tool_name:"Bash",tool_input:{command:$cmd}}')"
+  run bash -c "cd \"$1\" && printf '%s' '$json' | \"$SCRIPT\""
+}
+
 @test "checkout denied in main tree when worktrees exist" {
   add_worktree_entry
   run_guard_in "$REPO" "git checkout other-branch"
@@ -123,4 +134,22 @@ run_guard_in() {
   add_worktree_entry
   run_guard_in "$REPO" "git-checkout-helper other-branch"
   [ "$status" -eq 0 ]
+}
+
+@test "a commit message that merely mentions 'git checkout' is not falsely denied" {
+  add_worktree_entry
+  run_guard_in_safe "$REPO" 'git commit -m "add guard to block git checkout in main tree"'
+  [ "$status" -eq 0 ]
+}
+
+@test "an echo that merely mentions 'git switch' is not falsely denied" {
+  add_worktree_entry
+  run_guard_in_safe "$REPO" 'echo "use git switch instead"'
+  [ "$status" -eq 0 ]
+}
+
+@test "git -C <dir> checkout is still recognized as a real checkout invocation" {
+  add_worktree_entry
+  run_guard_in "$REPO" "git -C $REPO checkout other-branch"
+  [ "$status" -eq 2 ]
 }
