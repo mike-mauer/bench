@@ -6,7 +6,7 @@
 # they survive a crash), `git worktree prune` will NOT reclaim it — so orphans
 # accumulate. This reaper:
 #   1. runs `git worktree prune` (reclaims unlocked, already-deleted trees);
-#   2. force-removes stale .claude/worktrees/{agent-*,wf_*} trees whose branch is
+#   2. force-removes stale trees under .claude/worktrees/ whose branch is
 #      merged into the integration branch OR whose recorded HEAD is unreachable;
 #   3. NEVER removes a worktree currently in use (the tree holding $PWD, or main).
 #
@@ -42,7 +42,7 @@ wt_path="" wt_head="" wt_branch=""
 flush() {
   [ -n "$wt_path" ] || return 0
   case "$wt_path" in
-    "$WT_DIR"/agent-*|"$WT_DIR"/wf_*) : ;;   # only our isolated Worker trees
+    "$WT_DIR"/*) : ;;   # any tree under .claude/worktrees/ is reapable
     *) return 0 ;;
   esac
   if [ "$wt_path" = "$CURRENT_TREE" ] || [ "$wt_path" = "$MAIN_TREE" ]; then return 0; fi
