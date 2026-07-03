@@ -53,18 +53,20 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
+This repo is the source of the Bench plugin — there is no app to build. Quality gates:
 
 ```bash
-# Example:
-# npm install
-# npm test
+claude plugin validate ./plugins/bench --strict   # plugin manifest/structure validation
+shellcheck plugins/bench/scripts/*.sh             # lint all hook scripts
+bats tests/                                       # script tests (tests/ is landing on a parallel branch)
 ```
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+This repo is a Claude Code plugin **marketplace** serving a single plugin: `.claude-plugin/marketplace.json` points at `./plugins/bench`. Inside `plugins/bench/`, `agents/` holds the core pipeline roles (planner, engineer, qa, reviewer) and `agents-optional/` the opt-in specialists (data-eng, design-reviewer) that `/bench:init --with` copies into a consuming project. `skills/` carries the orchestrator playbook and the beads health-check skill, and `commands/` the `/bench:*` slash commands (init, doctor, new-agent). `hooks/hooks.json` wires session lifecycle events to the shell scripts in `scripts/` (bd install, worktree reaping, CLAUDE.md drift check, session-end guard, cloud push). `templates/` holds the CLAUDE.md orchestrator block that `/bench:init` injects into consuming projects, plus the custom-agent scaffold.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- **Hook scripts are best-effort:** every code path exits 0 — a hook must never block a session. They use `set -uo pipefail` (never `-e`) and log through a `log()` helper that prefixes each line (e.g. `[worktree-reap] …`).
+- **Actor attribution:** agent and skill docs pass `--actor=<role>` inline on every bd write — `BEADS_ACTOR` does not survive across shells.
+- **Managed CLAUDE.md block:** the orchestrator block shipped in `templates/CLAUDE.bench.md` is versioned by an 8-char content hash (`<!-- BEGIN BENCH v:N hash:XXXX -->`, computed by `scripts/bench-hash.sh`) and managed by `/bench:init`; the drift-check hook warns when a project's copy goes stale.
