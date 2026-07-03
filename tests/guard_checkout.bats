@@ -183,3 +183,33 @@ EOF'
   run_guard_in "$REPO" "git checkout other-branch"
   [ "$status" -eq 2 ]
 }
+
+# ---- round 2: ;/&&/|| INSIDE quotes still falsely denied ----------------
+#
+# Bench-y4h round 2: the round-1 fix stopped splitting on raw newlines but
+# still split on ;, &&, || with no quote awareness, so a ;/&&/|| appearing
+# INSIDE a quoted argument, immediately followed by a guarded token, was
+# still sliced into a bogus segment and falsely denied. Round-3 redesign:
+# strip quoted-span CONTENTS with a char-scan state machine BEFORE
+# splitting, so separators inside quotes never reach the splitter.
+
+@test "round2: a git commit message with a semicolon+git-checkout inside its quoted body is allowed" {
+  add_worktree_entry
+  run_guard_in_safe "$REPO" 'git commit -m "parser fixed; git checkout now works"'
+  [ "$status" -eq 0 ]
+}
+
+@test "round2: a git commit message with && + git-checkout inside its quoted body is allowed" {
+  add_worktree_entry
+  run_guard_in_safe "$REPO" 'git commit -m "do this && git checkout foo"'
+  [ "$status" -eq 0 ]
+}
+
+# ---- round 3: fail-open on unterminated quote ----------------------------
+
+@test "round3: an unterminated quote fails open (exit 0) and warns on stderr" {
+  add_worktree_entry
+  run_guard_in_safe "$REPO" 'git commit -m "oops'
+  [ "$status" -eq 0 ]
+  [ -n "$output" ]
+}

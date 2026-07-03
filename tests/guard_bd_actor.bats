@@ -196,6 +196,45 @@ EOF'
   [ "$status" -eq 2 ]
 }
 
+# ---- round 2: ;/&&/|| INSIDE quotes still falsely denied ----------------
+#
+# Bench-y4h round 2: the round-1 fix stopped splitting on raw newlines but
+# still split on ;, &&, || with no quote awareness, so a ;/&&/|| appearing
+# INSIDE a quoted argument, immediately followed by a guarded token, was
+# still sliced into a bogus segment and falsely denied. Round-3 redesign:
+# strip quoted-span CONTENTS with a char-scan state machine BEFORE
+# splitting, so separators inside quotes never reach the splitter.
+
+@test "round2 clincher: a fully-compliant bd comment with a semicolon+bd-close inside its quoted body is allowed" {
+  run_guard 'bd comment Bench-1 --actor=r "fixed parser; bd close Bench-2 next"'
+  [ "$status" -eq 0 ]
+}
+
+@test "round2: the && variant of the clincher is allowed" {
+  run_guard 'bd comment Bench-1 --actor=r "done && bd close Bench-2"'
+  [ "$status" -eq 0 ]
+}
+
+@test "round2: a git commit message with a semicolon+bd-close inside its quoted body is allowed" {
+  run_guard 'git commit -m "see notes; bd close Bench-1"'
+  [ "$status" -eq 0 ]
+}
+
+# ---- round 3: fail-open on unterminated quote ----------------------------
+
+@test "round3: an unterminated quote fails open (exit 0) and warns on stderr" {
+  run_guard 'bd close Bench-1 "oops'
+  [ "$status" -eq 0 ]
+  [ -n "$output" ]
+}
+
+# ---- round 3: real unquoted chains still deny (guard not neutered) ------
+
+@test "round3 control: a real unquoted chain bd show --actor=r && bd close y still denies" {
+  run_guard "bd show Bench-1 --actor=r && bd close Bench-2"
+  [ "$status" -eq 2 ]
+}
+
 @test "malformed stdin (not JSON) never crashes the hook and does not deny" {
   run bash -c "printf 'not json' | \"$SCRIPT\""
   [ "$status" -eq 0 ]
