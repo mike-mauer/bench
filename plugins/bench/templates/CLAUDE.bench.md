@@ -53,9 +53,16 @@ every `bd` write** — env vars don't survive across shell calls.
   integration branch from pipeline work.
 
 ### Session Completion
-When ending a work session, work is NOT complete until `git push` succeeds:
+When ending a work session:
 1. File beads for remaining work.
 2. Run quality gates on changed code (tests, lint, build).
 3. Update bead statuses; close finished work.
-4. **Push to remote** (`git pull --rebase` → `git push` → confirm `git status` is clean).
-5. Clean up stashes/branches and reap orphaned worktrees.
+4. **Commit locally** — leave changed work in small, focused commits (see Git Workflow).
+5. **Push / open PRs only with explicit authority.** Conservative is the default: report
+   what's ready and the exact commands (`git push`, `gh pr create …`), and run them only if
+   the user/orchestrator granted authority this session or the project has explicitly opted
+   in. Matches the beads `bd prime` session rules.
+6. Clean up stashes/branches and reap orphaned worktrees.
+
+The SessionEnd guard warns (warn-only) about uncommitted/unpushed work, so nothing is
+silently stranded.
