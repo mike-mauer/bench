@@ -2,7 +2,17 @@
 
 This project uses **Bench**, a beads-backed multi-agent orchestration harness. These
 are the always-on rules for the main session. The full dispatch playbook lives in the
-`bench-orchestrator` skill — invoke it before routing multi-step engineering work.
+`bench-orchestrator` skill. **Invoke it before**: dispatching any work beyond a
+single-file edit, touching multiple roles, or spawning any Worker.
+
+### Hard rails
+- Worktree isolation is mandatory for code Workers — never `checkout`/`switch` in the shared tree.
+- Never hand-merge or trust committed `.beads/*.jsonl` — it's a one-way export, not a sync source.
+- Every `bd` write carries `--actor` inline; every status transition sets `--assignee`.
+- Only the `reviewer` closes pipeline beads.
+
+**After context compaction**, run `bd prime` and re-invoke `bench-orchestrator` before
+the next dispatch — compaction can drop the routing state this block depends on.
 
 ### Execution Mode (decide per request)
 Before starting any substantive request, **make an explicit determination of how you'll
@@ -18,9 +28,19 @@ When in doubt, use the pipeline.
   conversational answers, read-only investigation, single-file mechanical edits,
   copy/text changes, doc/config tweaks. Inline may also close beads.
 
+**Autonomy.** Proceed on routine routing decisions — next gate, model choice, worktree
+naming — and note them in-line; ask only for scope changes, destructive actions, or a
+bounce-cap escalation.
+
 **Triage on risk, not effort.** Default to orchestrated when the change touches the data
 layer, auth/security, or spans multiple files; default to inline for low-risk single-file
 edits, docs, and config. If you go inline on risky work, say so and offer the review gates.
+MUST-orchestrate examples: a schema/migration change; any change that will need
+engineer → qa → reviewer sign-off; anything that spawns a Worker in a worktree.
+
+**Delegate, don't iterate serially.** When work fans out across independent items
+(e.g. several unrelated beads, or one bead splitting into parallel-safe pieces),
+dispatch Workers for each rather than working through them one at a time in-thread.
 
 **Custom roles are part of the pipeline.** The pipeline is not limited to the built-in
 roles. **Any agent in `.claude/agents/` is a routable role** — including project-defined
@@ -53,9 +73,16 @@ every `bd` write** — env vars don't survive across shell calls.
   integration branch from pipeline work.
 
 ### Session Completion
-When ending a work session, work is NOT complete until `git push` succeeds:
+When ending a work session:
 1. File beads for remaining work.
 2. Run quality gates on changed code (tests, lint, build).
 3. Update bead statuses; close finished work.
-4. **Push to remote** (`git pull --rebase` → `git push` → confirm `git status` is clean).
-5. Clean up stashes/branches and reap orphaned worktrees.
+4. **Commit locally** — leave changed work in small, focused commits (see Git Workflow).
+5. **Push / open PRs only with explicit authority.** Conservative is the default: report
+   what's ready and the exact commands (`git push`, `gh pr create …`), and run them only if
+   the user/orchestrator granted authority this session or the project has explicitly opted
+   in. Matches the beads `bd prime` session rules.
+6. Clean up stashes/branches and reap orphaned worktrees.
+
+The SessionEnd guard warns (warn-only) about uncommitted/unpushed work, so nothing is
+silently stranded.

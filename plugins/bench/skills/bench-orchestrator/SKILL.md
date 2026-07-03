@@ -10,10 +10,10 @@ description: "The Bench orchestration playbook — how the main session routes w
 ## Prime directive: track everything in beads first
 Before acting on **any** actionable item — a feature, a bug noticed in passing, a decision reached in discussion, a review follow-up — **file a bead first**, then dispatch. No work happens off the books.
 ```bash
-bd create --type <feature|bug|task|chore> --priority <p0..p3> --label <lane> \
+bd create --type <feature|bug|task|chore> --priority <p0..p4> --label <lane> \
   --title "<imperative, specific>" --description "<context + acceptance criteria>" --actor=orchestrator
 ```
-Items from an approved plan route through a `planner` Worker, which **files the dependency-ordered bead specs itself** with `--actor=planner`; a single bug/discussion item you file directly (`--actor=orchestrator`) and dispatch.
+Priorities run P0–P4 (P4 = backlog); reserve P0 for prod-down / security-fail-open. Items from an approved plan route through a `planner` Worker, which **files the dependency-ordered bead specs itself** with `--actor=planner`; a single bug/discussion item you file directly (`--actor=orchestrator`) and dispatch.
 
 ## Intake → the pipeline
 ```
@@ -53,7 +53,7 @@ The board is a single **embedded** engine (`Mode: direct`) in the main checkout'
 1. **Pick ready work:** `bd ready` (respect deps; don't start a bead whose deps are open).
 2. **Decide which roles it needs** (routing heuristics below) — not every bead needs every role.
 3. **Pick the model** per Worker (model policy below).
-4. **Claim + assign:** `bd update <id> --claim --assignee=<role> --actor=orchestrator`. You set the work up; you do **not** gather and paste context — the Worker reads it from the bead itself.
+4. **Claim + assign:** `bd update <id> --claim --assignee=<role> --actor=orchestrator`. You set the work up; you do **not** gather and paste context — the Worker reads it from the bead itself. (Verified semantics, `cmd/bd/update.go`: `--claim` runs a compare-and-swap claim as the `--actor` first, then `--assignee` overwrites the assignee — with `--actor=orchestrator` and `--assignee=<role>` that's intentional, but note the CAS guard is evaluated against the actor, not the final assignee.)
 5. **Spawn the Worker(s)** via the `Agent` tool. Any Worker that needs the feature code — `engineer`, `data-eng`, `qa`, `design-reviewer` — **MUST** get `isolation: "worktree"` (not optional). `planner`/`reviewer` don't need a worktree. Independent beads → spawn in parallel. Into each Worker's prompt pass only **the bead id + its role** (plus any cross-cutting context that isn't on the bead). The Worker runs `bd show <id>` and `bd comments <id>` itself to read the spec + prior handoffs — **the bead is the context**, so there is no thread to curate or re-paste (this also kills the old O(n²) re-paste growth).
 
    **Where context lives (decide before you type the prompt).** Three kinds, three homes — the prompt gets only the third:
@@ -78,6 +78,9 @@ FYI: <role(s) or none> — <what they should know>
 BLOCKERS: <none | description>
 <role-specific evidence>
 ```
+**STATUS vocabulary is per-role — parse accordingly:** `engineer` reports `done|blocked`; `qa`
+and `reviewer` report `pass|fail`; a custom role (per its `## Routing` block) reports whichever
+of `done|pass|fail|blocked` fits its kind (`builder` → `done|blocked`, `gate` → `pass|fail`).
 **One rule: each role writes its own handoff.** Before it terminates, every Worker posts its block to the bead and advances status, tagging the write with its own role:
 ```bash
 bd comment <id> "<my handoff block>" --actor=<role>
@@ -104,9 +107,9 @@ Defaults, not rails — add/drop a hop per bead. When in doubt, keep `reviewer` 
 The role set is **open**: a project can add its own roles with `/bench:new-agent`, which writes a Bench-compliant Worker to `.claude/agents/<name>.md`. **Discover them — don't assume the table above is exhaustive.** Once per session (and whenever a bead's concern isn't cleanly covered by a built-in), **list `.claude/agents/`** and, for any role beyond `planner`/`engineer`/`qa`/`reviewer`/`data-eng`/`design-reviewer`, read its frontmatter `description` and its `## Routing` block. That block tells you everything needed to place it: its **kind** (`builder` → gets a worktree + runs a TDD loop, like `engineer`; `gate` → reviews/verifies, writes no code, like `design-reviewer`), the bead shape it should **spawn** on, where it **sits** in the pipeline, its pass/fail `NEXT`, and whether it **needs a worktree**. Slot it accordingly, spawn it the same way as any built-in (`isolation: "worktree"` if it needs feature code; `--actor=<name>` on its bd writes), and apply the same bounce cap. A custom role does **not** close beads unless its `## Routing` says it is the closing gate — by default `reviewer` still closes. Custom roles register purely by their presence in `.claude/agents/`; there is no managed-block edit, so they are unaffected by `/bench:init` refreshes.
 
 ## Bounce cap — escalate instead of looping (you enforce this; the gates can't)
-`qa` and `reviewer` run an **adversarial** posture. Their own brakes (a FAIL needs a concrete reproducible defect; only **Blocking** issues bounce) keep most beads from ping-ponging. The **third brake is yours**, because the gates are ephemeral subagents that can't see a bead's history — only you persist. The gates now record their own pass/fail on the bead, so **read `bd show <id>` after each return** to count round-trips — don't rely on memory.
+`qa` and `reviewer` run an **adversarial** posture. Their own brakes (a FAIL needs a concrete reproducible defect; only **Blocking** issues bounce) keep most beads from ping-ponging. The **third brake is yours**, because the gates are ephemeral subagents that can't *remember* across dispatches — each FAIL handoff now carries a `ROUND: <n>` field the gate computes mechanically (prior same-gate FAIL comments in `bd comments <id>`, plus one), so read the **latest FAIL handoff's `ROUND`** after each return instead of counting from memory.
 
-**Rule:** count reject round-trips **per gate, per bead**. After **2** failed round-trips from the same gate on the same bead, **do not dispatch a third fix.** Instead:
+**Rule:** read the latest FAIL handoff's `ROUND` **per gate, per bead**. If `ROUND >= 2` from the same gate, **do not dispatch a third fix.** Instead:
 1. Leave the bead `in_progress` (don't close, don't re-dispatch).
 2. **Escalate to the human** with a one-paragraph summary: what keeps failing, the gate's last Blocking finding, the engineer's last position, and your recommendation (spec ambiguous / finding real but bigger than this bead / etc).
 3. Wait for direction. A 3rd identical round means the loop has stopped converging and a human should break the tie.
@@ -127,7 +130,7 @@ Any Worker that needs the feature code in a working tree — `engineer`, `data-e
 - **Subagent-type deregistration.** Agent defs only register as spawnable types while present in the working tree. A Worker that checks out a branch lacking them deregisters the roles for the rest of the session. *The same is true if **you** check a feature branch out into the shared tree — don't, for any reason.*
 - **Stop-hook / dirty-tree collisions** between the Worker's in-progress files and your session.
 
-**Worktrees reach the board natively — no special handling needed.** bd discovers the canonical `.beads/` via the git common directory, so a Worker's `bd` in a worktree reads and writes the *same* board the orchestrator uses; no orphan DB is created, even when `.beads/` config isn't committed (verified, bd 1.0.4). Use the Agent tool's plain `git worktree add` — **do not use `bd worktree create`**, which rejects any `.beads` under `$HOME` ("BEADS_DIR points to unsafe location").
+**Worktrees reach the board natively — no special handling needed.** bd discovers the canonical `.beads/` via the git common directory, so a Worker's `bd` in a worktree reads and writes the *same* board the orchestrator uses; no orphan DB is created, even when `.beads/` config isn't committed (verified, bd 1.0.4). Use the Agent tool's plain `git worktree add` — **do not use `bd worktree create`**, which rejects any `.beads` under `$HOME` ("BEADS_DIR points to unsafe location"). Any Worker tree you create manually **must** live under `.claude/worktrees/` with an `agent-` prefix (e.g. `.claude/worktrees/agent-<bead-id>`) — that's the contract the SessionStart reaper cleans up by, so a tree parked anywhere else leaks forever.
 
 **Fallback if a native type is unavailable** (e.g. already deregistered): spawn `general-purpose` and tell it to read the role's agent def and adopt that identity.
 
@@ -140,7 +143,10 @@ A SessionEnd guard warns on unfiled/unpushed work — but you're responsible:
 1. Every actionable item discussed has a bead.
 2. Quality gates ran on changed code (tests/lint/build).
 3. Bead statuses reflect reality; finished work closed.
-4. `git push` succeeded and `git status` is clean.
+4. **Commit locally** — leave changed work in small, focused commits. **Push / open PRs only
+   with explicit authority.** Conservative is the default: report what's ready and the exact
+   commands (`git push`, `gh pr create …`), and run them only if the user granted authority
+   this session or the project has explicitly opted in.
 
 ## Reading list at session start
 This playbook · `CLAUDE.md` (conventions, services) · the role agent defs · `bd ready` / `bd list` (what's in flight).

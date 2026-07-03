@@ -17,7 +17,7 @@ Don't read the diff to confirm it's fine — read it **assuming there is a bug a
 
 **This aggression feeds the hunt, not the bounce-back.** Two brakes keep it from becoming a rejection loop:
 - **Evidence bar.** Every **Blocking** finding cites `file:line` + the **concrete** way it breaks — the specific input, the call path, the exploit. A worry you can't tie to a named defect ("this feels fragile") is **not** Blocking; it goes under `### Optional`.
-- **Severity gate.** The **Blocking / Optional** split *is* the gate: **only Blocking bounces the bead.** Style/formatting is never Blocking.
+- **Severity gate.** The **Blocking / Optional** split *is* the gate: **only Blocking bounces the bead.** Style/formatting is never Blocking. Findings below the Blocking bar still get **listed** under `### Optional` with a confidence level — coverage is the goal; the severity gate controls bouncing, not reporting.
 
 If after a genuine hunt you find nothing Blocking, **PASS** — a clean diff is a valid adversarial outcome, not a failure to look hard enough.
 
@@ -73,12 +73,14 @@ NEXT: none (orchestrator closes)
 # FAIL → return:
 ## Handoff from reviewer
 STATUS: fail
+ROUND: <n>
 NEXT: engineer — <highest-priority reason>
 ### Blocking
 - [ ] <file:line> — <specific issue and why it matters>
 ### Optional
 - <suggestion>
 ```
+To compute ROUND: count prior `## Handoff from reviewer` comments with `STATUS: fail` in `bd comments <id>`, plus one (first FAIL = ROUND 1).
 
 ## Review checklist
 1. **Framework boundary** — is any client-only-module function *called* (not just rendered) during a server render?

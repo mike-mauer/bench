@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # shellcheck is preinstalled on ubuntu-latest runners.
+      - name: shellcheck plugin hook scripts (severity warning+)
+        run: shellcheck --severity=warning plugins/bench/scripts/*.sh
+
+  plugin-validate:
+    name: plugin-validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # `claude plugin validate` is a purely local static check: it parses
+      # .claude-plugin/plugin.json, skill/agent/command frontmatter, and
+      # hooks/hooks.json against the manifest schemas. It requires NO
+      # authentication or interactive onboarding (verified against a clean
+      # $HOME with no credentials), so the real CLI is used here instead of
+      # a jq-based JSON fallback. --strict promotes schema warnings
+      # (e.g. misspelled fields) to failures, as recommended for CI by
+      # https://code.claude.com/docs/en/plugins-reference
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Validate plugin manifest (strict)
+        run: claude plugin validate ./plugins/bench --strict
+      - name: Validate marketplace manifest (strict)
+        run: claude plugin validate . --strict
+
+  bats:
+    name: bats
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install bats-core
+        run: npm install -g bats
+      - name: Run test suite
+        run: bats tests/

@@ -11,8 +11,10 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
 1. **bd binary** — `command -v bd` and `bd version`. Compare against the configured pin
    (the plugin's `bd_version`, default `1.0.4`). Missing → note that the SessionStart
    `install-bd` hook installs it (may still be running in the background; check
-   `/tmp/bench-install-bd.log`). Version mismatch → ⚠️ (the `beads-health-check` skill
-   covers version-drift policy).
+   `install.log` in the plugin data dir, `${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}`).
+   Version mismatch → ⚠️ (the `beads-health-check` skill covers version-drift policy).
+   Also check for a `pin-drift` breadcrumb in the plugin data dir (dropped by the
+   `install-bd` hook when it detects or causes drift) and surface its contents as ⚠️.
 2. **Plugins active** — `claude plugin list` should show `bench` enabled and its `beads`
    dependency enabled. Missing beads → ⚠️ (`claude plugin install beads@beads-marketplace`).
 3. **Beads board** — `.beads/` exists and `bd ready` returns without error. Cold/empty board
@@ -27,10 +29,10 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
      `beads_global` / `shared-server`) instead of repo-local `.beads/embeddeddolt`, ⚠️
      recommend a repo-local engine (a shared engine widens the bootstrap blast radius).
 4. **CLAUDE.md block** — `CLAUDE.md` contains a `<!-- BEGIN BENCH ... -->` block. Extract its
-   `hash:` and compare to the bundled template's hash:
+   `hash:` and compare to the bundled template's hash (computed via the canonical helper
+   `/bench:init` and the drift-check hook also use):
    ```bash
-   if command -v sha256sum >/dev/null 2>&1; then WANT=$(sha256sum "${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md" | cut -c1-8)
-   else WANT=$(shasum -a 256 "${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md" | cut -c1-8); fi
+   WANT=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/bench-hash.sh" "${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md")
    HAVE=$(grep -o 'BEGIN BENCH[^>]*hash:[0-9a-f]*' CLAUDE.md 2>/dev/null | grep -o 'hash:[0-9a-f]*' | head -1 | cut -d: -f2)
    echo "want=$WANT have=$HAVE"
    ```

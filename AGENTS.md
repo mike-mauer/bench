@@ -1,28 +1,5 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
-
-> **Architecture in one line:** Issues live in a local Dolt database
-> (`.beads/dolt/`); cross-machine sync uses `bd dolt push/pull` (a
-> git-compatible protocol), stored under `refs/dolt/data` on your git
-> remote — separate from `refs/heads/*` where your code lives.
-> `.beads/issues.jsonl` is a passive export, not the wire protocol.
->
-> See [SYNC_CONCEPTS.md](https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md)
-> for the one-screen overview and anti-patterns (don't treat JSONL as the
-> source of truth; don't `bd import` during normal operation; don't
-> reach for third-party Dolt hosting before trying the default).
-
-## Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
-```
-
 ## Non-Interactive Shell Commands
 
 **ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
@@ -71,26 +48,15 @@ bd close <id>         # Complete work
 
 ## Session Completion
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
+When ending a work session:
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
+4. **Commit locally** - leave changed work in small, focused commits
+5. **Push / open PRs only with explicit authority** - Conservative is the default: report
+   what's ready and the exact commands (`git push`, `gh pr create …`), and run them only if
+   the user granted authority this session or the project has explicitly opted in
+6. **Clean up** - Clear stashes, prune remote branches
 7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
 <!-- END BEADS INTEGRATION -->
