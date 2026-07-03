@@ -10,10 +10,10 @@ description: "The Bench orchestration playbook — how the main session routes w
 ## Prime directive: track everything in beads first
 Before acting on **any** actionable item — a feature, a bug noticed in passing, a decision reached in discussion, a review follow-up — **file a bead first**, then dispatch. No work happens off the books.
 ```bash
-bd create --type <feature|bug|task|chore> --priority <p0..p3> --label <lane> \
+bd create --type <feature|bug|task|chore> --priority <p0..p4> --label <lane> \
   --title "<imperative, specific>" --description "<context + acceptance criteria>" --actor=orchestrator
 ```
-Items from an approved plan route through a `planner` Worker, which **files the dependency-ordered bead specs itself** with `--actor=planner`; a single bug/discussion item you file directly (`--actor=orchestrator`) and dispatch.
+Priorities run P0–P4 (P4 = backlog); reserve P0 for prod-down / security-fail-open. Items from an approved plan route through a `planner` Worker, which **files the dependency-ordered bead specs itself** with `--actor=planner`; a single bug/discussion item you file directly (`--actor=orchestrator`) and dispatch.
 
 ## Intake → the pipeline
 ```
