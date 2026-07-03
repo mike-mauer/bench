@@ -1,6 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "bench",
+  "description": "Marketplace for the Bench harness: a beads-backed multi-agent orchestration plugin for Claude Code.",
   "owner": {
     "name": "Mike Mauer",
     "url": "https://github.com/mike-mauer"
