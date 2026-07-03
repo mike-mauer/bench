@@ -153,3 +153,33 @@ run_guard_in_safe() {
   run_guard_in "$REPO" "git -C $REPO checkout other-branch"
   [ "$status" -eq 2 ]
 }
+
+# ---- quote/newline false-deny regressions (reviewer round 1) ------------
+#
+# Bench-y4h round 1: split_git_segments split on RAW newlines with no quote
+# awareness, so a multi-line quoted commit-message body or heredoc body
+# whose interior line begins with a guarded token was sliced into its own
+# bare "command segment" and falsely denied, even though the real, single
+# command (git commit / cat heredoc) never invokes checkout/switch/restore.
+# Fix: stop splitting on newlines; only split on ;, &&, ||.
+
+@test "repro 2: a git commit whose quoted message body mentions 'git checkout' on its own line is allowed" {
+  add_worktree_entry
+  run_guard_in_safe "$REPO" 'git commit -m "fix parser
+git checkout was mishandled"'
+  [ "$status" -eq 0 ]
+}
+
+@test "repro 3: a heredoc body mentioning a bare 'git checkout' line is allowed" {
+  add_worktree_entry
+  run_guard_in_safe "$REPO" 'cat <<EOF
+git checkout notes here
+EOF'
+  [ "$status" -eq 0 ]
+}
+
+@test "control: a bare single-line git checkout with worktrees present still denies (guard not neutered)" {
+  add_worktree_entry
+  run_guard_in "$REPO" "git checkout other-branch"
+  [ "$status" -eq 2 ]
+}

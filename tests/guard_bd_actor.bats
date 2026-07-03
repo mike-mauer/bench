@@ -155,6 +155,47 @@ run_guard() {
   [ "$status" -eq 0 ]
 }
 
+# ---- quote/newline false-deny regressions (reviewer round 1) ------------
+#
+# Bench-y4h round 1: split_segments split on RAW newlines with no quote
+# awareness, so a multi-line quoted argument (commit message body, heredoc
+# body) whose interior line begins with a guarded token was sliced into its
+# own bare "command segment" and falsely denied — even though the whole
+# thing is a single, non-bd (or fully compliant) command. Fix: stop
+# splitting on newlines; only split on ;, &&, ||. A real newline-separated
+# chain outside any quoting is treated as one segment (a tolerated
+# false-allow — the reviewer confirmed false-allows are the acceptable
+# trade for a convention guard, false-denies are not).
+
+@test "repro 4: a fully-compliant bd comment whose quoted body contains a bare bd close line is allowed" {
+  run_guard 'bd comment Bench-1 --actor=r "line one
+bd close Bench-2"'
+  [ "$status" -eq 0 ]
+}
+
+@test "a git commit whose quoted message body mentions 'bd close X' on its own line is allowed" {
+  run_guard 'git commit -m "impl guard
+bd close Bench-1 after merge"'
+  [ "$status" -eq 0 ]
+}
+
+@test "a heredoc body mentioning a bare bd close line is allowed" {
+  run_guard 'cat <<EOF
+bd close Bench-1
+EOF'
+  [ "$status" -eq 0 ]
+}
+
+@test "control: the same tokens on a single line inside quotes still pass (sanity, not a regression)" {
+  run_guard 'bd comment Bench-1 --actor=r "bd close Bench-2 mentioned inline"'
+  [ "$status" -eq 0 ]
+}
+
+@test "control: a bare single-line bd close with no actor still denies (guard not neutered)" {
+  run_guard "bd close Bench-1"
+  [ "$status" -eq 2 ]
+}
+
 @test "malformed stdin (not JSON) never crashes the hook and does not deny" {
   run bash -c "printf 'not json' | \"$SCRIPT\""
   [ "$status" -eq 0 ]
