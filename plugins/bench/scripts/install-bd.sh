@@ -25,6 +25,28 @@ VERSION="${VERSION#v}"
 DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}"
 BIN_DIR="$DATA_DIR/bin"
 
+# Non-blocking pin check for a bd we did NOT just install: warn and drop a
+# breadcrumb ($DATA_DIR/pin-drift) if its version doesn't match the pin, remove
+# any stale breadcrumb if it does. Never changes the exit code.
+check_pin_drift() {
+  bd_path="$1"
+  found="$("$bd_path" version 2>/dev/null | head -1 | cut -d' ' -f3)"
+  [ -n "$found" ] || return 0  # couldn't determine version — say nothing
+  if [ "$found" != "$VERSION" ]; then
+    log "WARNING: bd on PATH is $found but the plugin pins $VERSION — see the beads-health-check skill for drift policy."
+    mkdir -p "$DATA_DIR" 2>/dev/null || return 0
+    {
+      echo "found-version: $found"
+      echo "pinned-version: $VERSION"
+      echo "path: $bd_path"
+      echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$DATA_DIR/pin-drift" 2>/dev/null || true
+  else
+    rm -f "$DATA_DIR/pin-drift" 2>/dev/null || true
+  fi
+  return 0
+}
+
 # Export bd's likely locations on PATH for the rest of the session — unconditionally
 # and up front, so bd is usable the moment the (possibly detached) install lands.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
@@ -38,23 +60,32 @@ fi
 
 # Already have bd somewhere on PATH? Respect it — nothing to install.
 if command -v bd >/dev/null 2>&1; then
+  check_pin_drift "$(command -v bd)"
   bash "$(dirname "${BASH_SOURCE[0]}")/beads-bootstrap.sh" >/dev/null 2>&1 || true
   exit 0
 fi
 
 # Already installed our pinned copy in a previous session?
 if [ -x "$BIN_DIR/bd" ]; then
+  check_pin_drift "$BIN_DIR/bd"
   bash "$(dirname "${BASH_SOURCE[0]}")/beads-bootstrap.sh" >/dev/null 2>&1 || true
   exit 0
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# The detached shell logs here from its first line — make sure the dir exists first.
+mkdir -p "$DATA_DIR" 2>/dev/null || true
+LOG_FILE="$DATA_DIR/install.log"
+
 # The slow part (network + extract) runs detached so SessionStart returns now.
+# VERSION/BIN_DIR/SCRIPT_DIR/DATA_DIR are passed as environment variables (not
+# spliced into the script text) so paths with spaces/quotes survive intact.
+# shellcheck disable=SC2016  # single quotes are deliberate: the inner script expands these vars itself, from its environment
+VERSION="$VERSION" BIN_DIR="$BIN_DIR" SCRIPT_DIR="$SCRIPT_DIR" DATA_DIR="$DATA_DIR" \
 setsid nohup bash -c '
   set -uo pipefail
-  log() { printf "[install-bd] %s\n" "$*" >> /tmp/bench-install-bd.log; }
-  VERSION="'"$VERSION"'"; BIN_DIR="'"$BIN_DIR"'"; SCRIPT_DIR="'"$SCRIPT_DIR"'"
+  log() { printf "[install-bd] %s\n" "$*" >> "$DATA_DIR/install.log"; }
   mkdir -p "$BIN_DIR"
 
   os=""; arch=""
@@ -71,6 +102,9 @@ setsid nohup bash -c '
   rm -rf "$tmp"
 
   # 2) Fallback: pinned go install into BIN_DIR.
+  # NOTE: the module path is github.com/steveyegge/beads even though the repo now
+  # lives at github.com/gastownhall/beads (used for the tarball URL above) — the
+  # repo was renamed/moved but its go.mod still declares the original module path.
   if [ ! -x "$BIN_DIR/bd" ] && command -v go >/dev/null 2>&1; then
     if GOBIN="$BIN_DIR" CGO_ENABLED=1 GOFLAGS="-tags=gms_pure_go" go install "github.com/steveyegge/beads/cmd/bd@v${VERSION}" 2>/dev/null \
     || GOBIN="$BIN_DIR" CGO_ENABLED=0 go install "github.com/steveyegge/beads/cmd/bd@v${VERSION}" 2>/dev/null; then
@@ -78,10 +112,28 @@ setsid nohup bash -c '
     fi
   fi
 
+  # Installed at the pin? Clear any stale drift breadcrumb from a prior session.
+  if [ -x "$BIN_DIR/bd" ]; then
+    rm -f "$DATA_DIR/pin-drift" 2>/dev/null || true
+  fi
+
   # 3) Last resort: upstream installer (LATEST — pin not honored).
   if [ ! -x "$BIN_DIR/bd" ] && ! command -v bd >/dev/null 2>&1; then
     if curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh | bash >/dev/null 2>&1; then
-      log "installed bd via upstream installer (LATEST — could not honor v${VERSION} pin)."
+      log "WARNING: installed bd via upstream installer — this is an UNPINNED latest version, not the pinned v${VERSION}. See the beads-health-check skill for drift policy."
+      fb_path="$(PATH="$BIN_DIR:$PATH:$HOME/.local/bin" command -v bd 2>/dev/null || true)"
+      fb_found="unknown"
+      if [ -n "$fb_path" ]; then
+        v="$("$fb_path" version 2>/dev/null | head -1 | cut -d" " -f3)"
+        [ -n "$v" ] && fb_found="$v"
+      fi
+      {
+        echo "found-version: $fb_found"
+        echo "pinned-version: $VERSION"
+        echo "path: ${fb_path:-unknown}"
+        echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "reason: fallback installed latest"
+      } > "$DATA_DIR/pin-drift" 2>/dev/null || true
     else
       log "bd install failed (non-fatal)."
     fi
@@ -89,8 +141,8 @@ setsid nohup bash -c '
 
   # Once bd has landed, rehydrate a cold board (idempotent, best-effort).
   PATH="$BIN_DIR:$PATH:$HOME/.local/bin" bash "$SCRIPT_DIR/beads-bootstrap.sh" >/dev/null 2>&1 || true
-' >/tmp/bench-install-bd.log 2>&1 &
+' >"$LOG_FILE" 2>&1 &
 disown 2>/dev/null || true
 
-log "installing beads (bd) v${VERSION} in the background → /tmp/bench-install-bd.log"
+log "installing beads (bd) v${VERSION} in the background → $LOG_FILE"
 exit 0

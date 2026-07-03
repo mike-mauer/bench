@@ -99,6 +99,9 @@ set by its `bd_version` config, default `1.0.4`). Anything else is the finding �
 it loudly. **Never run `bd upgrade`** as an auto-fix; version changes are a human
 decision. (Context: beads `1.0.5` reintroduced a panic on bulk reads with large TEXT
 rows — upstream #4267/#4049 — which is why `1.0.4` is the conservative default pin.)
+The plugin's `install-bd` SessionStart hook drops a `pin-drift` breadcrumb file in the
+plugin data dir (`${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}`) whenever it detects or
+causes drift — check for it and surface its contents as part of this finding.
 
 #### GitHub-sync duplicates — ALWAYS flag, never run `bd github sync`
 The most expensive footgun. `bd github sync` matches issues across the beads↔GitHub
