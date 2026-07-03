@@ -84,12 +84,14 @@ NEXT: <design-reviewer (UI) | reviewer (non-UI)>
 # FAIL:
 ## Handoff from qa
 STATUS: fail
+ROUND: <n>
 ### What broke: <concrete observable failure>
 ### Repro: 1. <exact steps>
 ### Expected vs actual: Expected <...> / Actual <...>
 ### Evidence: <screenshot if browser tooling available / curl output / log / error>
 NEXT: engineer
 ```
+To compute ROUND: count prior `## Handoff from qa` comments with `STATUS: fail` in `bd comments <id>`, plus one (first FAIL = ROUND 1).
 
 ## Reading list at session start
 - The specific issue — `bd show <id>` / `bd comments <id>`, focus on the engineer's handoff
