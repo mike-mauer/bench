@@ -34,45 +34,108 @@ command_str="$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/de
 cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"
 [ -n "$cwd" ] || cwd="$PWD"
 
-# Split on ;, &&, and ||. Deliberately does NOT split on raw newlines: a
-# multi-line QUOTED argument (a commit message body, a heredoc body)
-# routinely contains lines that start with "git checkout"/"switch"/
-# "restore" purely as prose — e.g. `git commit -m "fix parser\ngit checkout
-# was mishandled"` or a heredoc body mentioning "git checkout" in its text.
-# Splitting on bare newlines without quote/heredoc awareness turns that
-# prose into its own bogus "command segment" and falsely denies a command
-# that never actually invokes checkout/switch/restore (Bench-y4h round 1).
-# The trade-off: a real newline-separated command chain outside of any
-# quoting is now treated as a single segment; false-allow is the tolerable
-# direction for this guard, false-deny (blocking legitimate work) is not.
-split_git_segments() {
-  # NUL-delimited, not newline-delimited: `read` terminates a field on ANY
-  # newline byte, so routing separators through \n can never coexist with
-  # preserving a real newline that occurs INSIDE a segment (a quoted
-  # commit-message body, a heredoc body). NUL cannot appear in a shell
-  # command string, so it's a safe, unambiguous delimiter. The trailing ';'
-  # guarantees the final segment is itself NUL-terminated — `read -d ''`
-  # drops an unterminated final field otherwise.
-  printf '%s;' "$1" | sed -E 's/&&|\|\|/;/g' | tr ';' '\000'
-}
-
 # Escape hatch, hook-process env.
 [ "${BENCH_ALLOW_CHECKOUT:-}" = "1" ] && exit 0
 
 # Escape hatch, inline command-string form: a leading VAR=value assignment
 # that Claude Code strips before spawning Bash, so the hook process itself
-# never sees it as an env var — grep the raw command string instead.
+# never sees it as an env var — grep the RAW command string (never
+# quoted, so quote-stripping below would only ever be a no-op here, but
+# checking the raw string keeps this escape hatch independent of the
+# checkout-detection path's fail-open behavior).
 if printf '%s' "$command_str" | grep -Eq '(^|[[:space:];&|]) *BENCH_ALLOW_CHECKOUT=1([[:space:]]|$)'; then
   exit 0
 fi
 
+# --- Round 3 redesign (Bench-y4h round 3, human-authorized) ---------------
+#
+# Rounds 1 and 2 both tried to make the SEPARATOR SCAN quote-aware after
+# the fact (first by excluding newlines, then by NUL-delimiting) and both
+# left a real hole: any separator that appears literally inside a quoted
+# argument (a commit-message body) still reached the splitter and was
+# treated as a command boundary, falsely denying a single, unrelated
+# command.
+#
+# The fix operates one step earlier: BEFORE any segment-splitting, delete
+# the CONTENTS of every quoted span (single- or double-quoted) from the
+# command string, via a character-scan state machine. Structure survives
+# but nothing inside a quote — semicolons, &&, ||, or guarded-looking
+# prose — can ever reach the splitter or the subcommand walker, because it
+# no longer exists in the string being scanned.
+#
+# Fail-open principle: if the command string ends INSIDE an unterminated
+# quote, the state machine is by definition uncertain about the command's
+# real structure. Per the human-authorized round-3 spec, uncertainty always
+# fails open (exit 0) with a one-line stderr warning — never denies.
+_STRIPPED=""
+strip_quoted_spans() {
+  # $1 = raw command string. Sets the global _STRIPPED to the string with
+  # quoted-span CONTENTS deleted (structure-preserving). Returns 0 if every
+  # quote opened was also closed; returns 1 if the scan ends mid-quote.
+  # Single quotes take no escapes (shell-correct). Inside double quotes, a
+  # backslash escapes the next character (so \" does not close the span).
+  local s="$1" out="" i c n="${#1}" state=U
+  for (( i = 0; i < n; i++ )); do
+    c="${s:i:1}"
+    case "$state" in
+      U)
+        case "$c" in
+          \') state=S ;;
+          \") state=D ;;
+          *) out+="$c" ;;
+        esac
+        ;;
+      S)
+        [ "$c" = "'" ] && state=U
+        ;;
+      D)
+        case "$c" in
+          \") state=U ;;
+          \\) i=$((i + 1)) ;;
+          *) : ;;
+        esac
+        ;;
+    esac
+  done
+  _STRIPPED="$out"
+  [ "$state" = "U" ]
+}
+
+# NOTE: `local x=$(...)` masks the command substitution's exit status with
+# `local`'s own (always 0). Assign in two steps so $? reflects the scan.
+strip_quoted_spans "$command_str"
+quote_scan_ok=$?
+stripped_command="$_STRIPPED"
+
+if [ "$quote_scan_ok" -ne 0 ]; then
+  printf 'guard-checkout: unterminated quote in command — allowing (fail-open; could not reliably scan for checkout/switch/restore)\n' >&2
+  exit 0
+fi
+
+# Split on ;, &&, and ||, evaluated on the QUOTE-STRIPPED string only, so a
+# separator inside a quoted argument can never be mistaken for a real
+# command boundary. Deliberately does NOT split on raw newlines — a real,
+# entirely unquoted newline-separated chain is treated as a single
+# segment; false-allow is the tolerable direction for this guard,
+# false-deny (blocking legitimate work) is not.
+split_git_segments() {
+  # NUL-delimited, not newline-delimited: `read` terminates a field on ANY
+  # newline byte, so routing separators through \n can never coexist with
+  # preserving a real newline that occurs INSIDE a segment (now only
+  # possible for an unquoted heredoc body, since quoted spans are already
+  # stripped above). NUL cannot appear in a shell command string, so it's a
+  # safe, unambiguous delimiter. The trailing ';' guarantees the final
+  # segment is itself NUL-terminated — `read -d ''` drops an unterminated
+  # final field otherwise.
+  printf '%s;' "$1" | sed -E 's/&&|\|\|/;/g' | tr ';' '\000'
+}
+
 # Determine whether any command segment actually INVOKES git with a
 # checkout/switch/restore subcommand — not merely a string that mentions
 # those words (e.g. `git commit -m "block git checkout"`, `echo "git switch"`).
-# Split on ;, &&, ||, and newlines, then per segment: the first token must
-# be `git` (or a path ending in /git), and the first non-option token after
-# it (skipping simple `git -C <dir>` / `--flag[=value]` forms) must be one
-# of checkout/switch/restore.
+# Per segment: the first token must be `git` (or a path ending in /git),
+# and the first non-option token after it (skipping simple `git -C <dir>` /
+# `--flag[=value]` forms) must be one of checkout/switch/restore.
 command_invokes_checkout=0
 while IFS= read -r -d '' segment; do
   [ -n "$segment" ] || continue
@@ -118,7 +181,7 @@ while IFS= read -r -d '' segment; do
   case "$subcommand" in
     checkout|switch|restore) command_invokes_checkout=1; break ;;
   esac
-done < <(split_git_segments "$command_str")
+done < <(split_git_segments "$stripped_command")
 
 [ "$command_invokes_checkout" -eq 1 ] || exit 0
 
