@@ -11,8 +11,10 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
 1. **bd binary** — `command -v bd` and `bd version`. Compare against the configured pin
    (the plugin's `bd_version`, default `1.0.4`). Missing → note that the SessionStart
    `install-bd` hook installs it (may still be running in the background; check
-   `/tmp/bench-install-bd.log`). Version mismatch → ⚠️ (the `beads-health-check` skill
-   covers version-drift policy).
+   `install.log` in the plugin data dir, `${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}`).
+   Version mismatch → ⚠️ (the `beads-health-check` skill covers version-drift policy).
+   Also check for a `pin-drift` breadcrumb in the plugin data dir (dropped by the
+   `install-bd` hook when it detects or causes drift) and surface its contents as ⚠️.
 2. **Plugins active** — `claude plugin list` should show `bench` enabled and its `beads`
    dependency enabled. Missing beads → ⚠️ (`claude plugin install beads@beads-marketplace`).
 3. **Beads board** — `.beads/` exists and `bd ready` returns without error. Cold/empty board
