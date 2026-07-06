@@ -54,7 +54,7 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
 - `bd ready` (available work) · `bd show <id>` · `bd update <id> --claim` · `bd close <id>`.
 - Run `bd prime` for command reference and session-close protocol (provided by the beads plugin).
 - **Every role runs `bd` directly** against the shared project board with `--actor=<role>` —
-  agents in worktrees reach the same board via git-common-dir discovery (verified bd 1.0.4). The
+  agents in worktrees reach the same board via git-common-dir discovery (verified bd 1.1.0). The
   orchestrator owns routing, integration, and the bounce cap, not courier duty (see the
   `bench-orchestrator` skill).
 
