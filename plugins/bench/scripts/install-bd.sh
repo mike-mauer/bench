@@ -9,7 +9,7 @@
 #   • Idempotent — if `bd` is already on PATH, this is a no-op (we respect an
 #     existing install; the beads-health-check skill flags version drift).
 #   • Version-pinned — installs the version from the plugin's `bd_version` config
-#     (exported as CLAUDE_PLUGIN_OPTION_BD_VERSION; default 1.0.4) because the
+#     (exported as CLAUDE_PLUGIN_OPTION_BD_VERSION; default 1.1.0) because the
 #     upstream installer always grabs "latest" and can't pin.
 #   • Update-surviving — installs into ${CLAUDE_PLUGIN_DATA}/bin, the persistent
 #     plugin data dir, so a plugin update doesn't re-download.
@@ -20,7 +20,7 @@ set -uo pipefail
 
 log() { printf '[install-bd] %s\n' "$*" >&2; }
 
-VERSION="${CLAUDE_PLUGIN_OPTION_BD_VERSION:-1.0.4}"
+VERSION="${CLAUDE_PLUGIN_OPTION_BD_VERSION:-1.1.0}"
 VERSION="${VERSION#v}"
 DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}"
 BIN_DIR="$DATA_DIR/bin"

@@ -9,7 +9,7 @@ Run a **read-only** diagnostic of the Bench harness in the current project and p
 concise report. Do not modify any files. For each item, show ✅ / ⚠️ and the fix command.
 
 1. **bd binary** — `command -v bd` and `bd version`. Compare against the configured pin
-   (the plugin's `bd_version`, default `1.0.4`). Missing → note that the SessionStart
+   (the plugin's `bd_version`, default `1.1.0`). Missing → note that the SessionStart
    `install-bd` hook installs it (may still be running in the background; check
    `install.log` in the plugin data dir, `${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}`).
    Version mismatch → ⚠️ (the `beads-health-check` skill covers version-drift policy).

@@ -94,7 +94,7 @@ durable fix for "I added a role but it never gets routed to": the agent def *is*
 registration, and it survives plugin refreshes because it's project-owned.
 
 ## Configuration
-`bd_version` (plugin userConfig, default `1.0.4`) — the beads CLI version the SessionStart
+`bd_version` (plugin userConfig, default `1.1.0`) — the beads CLI version the SessionStart
 hook installs into the persistent plugin data dir. Override only if you need a different
 release; an existing `bd` already on your `PATH` is always respected.
 
