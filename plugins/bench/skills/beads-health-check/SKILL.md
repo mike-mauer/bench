@@ -108,7 +108,7 @@ The most damaging drift variant, and it hides from a naive `bd version` check.
 `bd version` reports only the **first** bd on PATH; on a Bench machine that is the
 plugin's pinned copy (installed under `${CLAUDE_PLUGIN_DATA}/bin`, historically ahead
 of a system bd). A **newer** system bd sitting *behind* the pinned copy is invisible to
-`bd version` alone — enumerate the full set with `which -a bd` (or `command -v -a bd`)
+`bd version` alone — enumerate the full set with `which -a bd`
 and run `version` on each. If any bd on PATH is **newer than the pin**, and this
 project's board has already been **migrated to that newer bd's schema** (e.g. v53 under
 bd 1.1.0), then **every write from the pinned bd fails** with the exact signature:
@@ -296,7 +296,6 @@ untangle it.
 ## Needs your decision
 - [version] <only if bd version ≠ the project pin>
 - [version:CRITICAL] <mixed bd on PATH + board schema newer than pin → names both binaries; Error 1105 silent-write-loss; do NOT run the newer bd>
-
 - [structure] <epics with 0/0 or dropped parent edges → suggested --parent fixes; closure mismatches>
 - [github-dups] <clusters, with external_ref status; reminder: do not run bd github sync>
 - [orphans] <issue → exact fix>
