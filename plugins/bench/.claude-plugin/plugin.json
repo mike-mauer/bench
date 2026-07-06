@@ -16,7 +16,7 @@
       "type": "string",
       "title": "beads (bd) version to install",
       "description": "Version of the beads CLI binary the SessionStart hook installs into the plugin data dir. Defaults to a known-good pin; override only if you need a different release.",
-      "default": "1.0.4"
+      "default": "1.1.0"
     }
   }
 }

@@ -60,7 +60,7 @@ This repo is a Claude Code plugin **marketplace** serving a single plugin: `.cla
 - **Actor attribution:** agent and skill docs pass `--actor=<role>` inline on every bd write — `BEADS_ACTOR` does not survive across shells.
 - **Managed CLAUDE.md block:** the orchestrator block shipped in `templates/CLAUDE.bench.md` is versioned by an 8-char content hash (`<!-- BEGIN BENCH v:N hash:XXXX -->`, computed by `scripts/bench-hash.sh`) and managed by `/bench:init`; the drift-check hook warns when a project's copy goes stale.
 
-<!-- BEGIN BENCH v:1 hash:005853d7 -->
+<!-- BEGIN BENCH v:1 hash:cb20b8c3 -->
 ## Bench harness — operating rules
 
 This project uses **Bench**, a beads-backed multi-agent orchestration harness. These
@@ -117,7 +117,7 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
 - `bd ready` (available work) · `bd show <id>` · `bd update <id> --claim` · `bd close <id>`.
 - Run `bd prime` for command reference and session-close protocol (provided by the beads plugin).
 - **Every role runs `bd` directly** against the shared project board with `--actor=<role>` —
-  agents in worktrees reach the same board via git-common-dir discovery (verified bd 1.0.4). The
+  agents in worktrees reach the same board via git-common-dir discovery (verified bd 1.1.0). The
   orchestrator owns routing, integration, and the bounce cap, not courier duty (see the
   `bench-orchestrator` skill).
 

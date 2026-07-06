@@ -95,10 +95,12 @@ against `bd status`.
 
 #### Version drift — ALWAYS flag, never auto-fix
 Check `bd version` against the project's pin (the Bench plugin installs the version
-set by its `bd_version` config, default `1.0.4`). Anything else is the finding — flag
+set by its `bd_version` config, default `1.1.0`). Anything else is the finding — flag
 it loudly. **Never run `bd upgrade`** as an auto-fix; version changes are a human
-decision. (Context: beads `1.0.5` reintroduced a panic on bulk reads with large TEXT
-rows — upstream #4267/#4049 — which is why `1.0.4` is the conservative default pin.)
+decision. (Context: the pin sat at a conservative `1.0.4` while beads `1.0.5` carried a
+panic on bulk reads with large TEXT rows — upstream #4267/#4049. `1.1.x` fixes those,
+and the `1.1.0` pin is verified by the 2026-07-06 re-spike (Bench-nfh): migration
+rehearsal clean, GH#2571 concurrency gate PASS, git-common-dir worktree sharing intact.)
 The plugin's `install-bd` SessionStart hook drops a `pin-drift` breadcrumb file in the
 plugin data dir (`${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}`) whenever it detects or
 causes drift — check for it and surface its contents as part of this finding.
@@ -117,10 +119,17 @@ bd 1.1.0), then **every write from the pinned bd fails** with the exact signatur
 Error 1105: Field id doesn't have a default value
 ```
 
-This is **CRITICAL**, not ordinary drift, because the failure is **silent**: `bd create`
-/ `bd comment` / `bd update` return without creating the row, so **agent handoff writes
-are lost** (a Worker's handoff comment never lands; the bead stays stuck at its old
-assignee). Detection signals, any of which confirm the finding:
+This is **CRITICAL**, not ordinary drift, because the failure is **silent on reads**.
+Precise characterization from the 2026-07-06 re-spike (Bench-nfh), an **older bd against
+a schema-ahead board** (e.g. pinned 1.0.4 vs a v53 board): **reads succeed and even
+`bd comment` succeeds**, but the event-recording writes — `bd create` / `bd update` /
+`bd close` — fail `Error 1105` and record **no row** (the failed create is atomic — it
+leaves nothing behind). Because reads and comments look healthy, nothing warns you, so
+**agent handoff writes silently vanish** (a Worker's status/close transition never lands;
+the bead stays stuck at its old assignee). The **reverse** direction is louder but just as
+broken: a **newer bd against an older (v32) board** fails **reads outright** (the read path
+queries post-migration columns that don't exist yet), which is why e.g. BeadBox on the GUI
+PATH cannot open a still-v32 project. Detection signals, any of which confirm the finding:
 - `which -a bd` shows two+ binaries with the newer one behind the pin;
 - the `install-bd` breadcrumb (`${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}/pin-drift`)
   carries `reason: newer bd shadowed behind pinned copy (Bench-usv)`;

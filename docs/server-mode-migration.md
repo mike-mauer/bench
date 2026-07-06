@@ -574,8 +574,10 @@ shared queue.
   within the pinned line*: bd 1.0.4 removed the embedded flock (PR #3614) and now relies on the
   Dolt driver's internal serialization, with the GH#2571 concurrent nil-deref panic class **latent**
   behind it. So re-running the §9 spike on **any** `bd_version` bump is mandatory, not a nicety —
-  a driver regression could resurface #2571 under exactly our access pattern. **Pin stays 1.0.4**
-  until a bump is spiked.
+  a driver regression could resurface #2571 under exactly our access pattern. The pin has since
+  moved to **1.1.0**, gated on the 2026-07-06 re-spike (Bench-nfh: migration rehearsal clean,
+  GH#2571 concurrency gate PASS, git-common-dir worktree sharing intact); the re-spike-before-bumping
+  rule stands for any future bump.
 - **Two git-tracked JSONLs, not one.** `issues.jsonl` *and* `interactions.jsonl` both carry the
   stale-snapshot/merge-resurrection profile (§11.3.A). Any worktree `.beads/` commit is a hazard.
 
