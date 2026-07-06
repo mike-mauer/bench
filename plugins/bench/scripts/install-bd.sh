@@ -165,11 +165,21 @@ if command -v bd >/dev/null 2>&1; then
   exit 0
 fi
 
-# Already installed our pinned copy in a previous session?
+# Already installed our pinned copy in a previous session? Respect it ONLY if its
+# version still matches the pin. If the plugin's bd_version has since been bumped,
+# the installed copy is stale — log the decision and fall through to the detached
+# install below, which overwrites BIN_DIR/bd with the pinned release (the tarball
+# path installs unconditionally). Without this, a pin bump would never replace a
+# previously installed binary (Bench-nfh.1). Best-effort: if `bd version` yields
+# nothing (unreadable/corrupt), treat as a match and respect it — never wedge.
 if [ -x "$BIN_DIR/bd" ]; then
-  check_pin_drift
-  bash "$(dirname "${BASH_SOURCE[0]}")/beads-bootstrap.sh" >/dev/null 2>&1 || true
-  exit 0
+  installed_ver="$("$BIN_DIR/bd" version 2>/dev/null | head -1 | cut -d' ' -f3)"
+  if [ -z "$installed_ver" ] || [ "$installed_ver" = "$VERSION" ]; then
+    check_pin_drift
+    bash "$(dirname "${BASH_SOURCE[0]}")/beads-bootstrap.sh" >/dev/null 2>&1 || true
+    exit 0
+  fi
+  log "installed bd at $BIN_DIR/bd is $installed_ver but the plugin pins $VERSION — reinstalling the pinned version over it."
 fi
 
 # Test hook: skip the detached network install so the bats suite is hermetic.
