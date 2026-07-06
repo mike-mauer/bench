@@ -100,6 +100,23 @@ put_system_newer() {
   [[ "$output" == *"$SYS_DIR/bd"* ]]
 }
 
+@test "newer bd FIRST + pinned copy not yet on PATH: still flags the newer bd, labels pin by BIN_DIR" {
+  # At hook time BIN_DIR may not be on PATH yet (env-file not sourced), so the
+  # only bd resolved is the newer system one. The warning must still fire and
+  # must NOT mislabel the system bd as "the pinned copy".
+  make_bd "$SYS_DIR" "1.1.0"
+  export PATH="$SYS_DIR:$PATH"   # newer bd first; no BIN_DIR/bd on PATH
+
+  run bash "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  [ -f "$DATA_DIR/pin-drift" ]
+  grep -q "$SYS_DIR/bd" "$DATA_DIR/pin-drift"
+  # The pinned copy is labeled by its install location (BIN_DIR), not the system path.
+  grep -q "pinned-path: $BIN_DIR/bd" "$DATA_DIR/pin-drift"
+  [[ "$output" == *"Error 1105: Field id doesn't have a default value"* ]]
+}
+
 @test "no divergence (only the pinned copy on PATH): no drift breadcrumb, exit 0" {
   put_pinned          # only the pinned 1.0.4, nothing behind it
 

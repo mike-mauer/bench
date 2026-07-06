@@ -56,33 +56,39 @@ semver_cmp() {
 # the newer bd could one-way-migrate the board). A stale breadcrumb is removed
 # when the only bd(s) on PATH match the pin. Never changes the exit code.
 check_pin_drift() {
-  # Collect all bd on PATH, dedup preserving order.
+  # Enumerate ALL bd on PATH, dedup preserving order. `which -a` / `type -a` are
+  # the reliable enumerators — do NOT use `command -v -a`: POSIX `command -v`
+  # takes no `-a` and either errors or returns only the FIRST match, which is the
+  # first-only blindness this whole function exists to fix.
   bins=""
   while IFS= read -r p; do
     [ -n "$p" ] || continue
+    case "$p" in /*) : ;; *) continue;; esac  # keep absolute paths only
+    [ -x "$p" ] || continue
     case ":$bins:" in *":$p:"*) continue;; esac
     bins="${bins:+$bins:}$p"
   done <<EOF
-$(command -v -a bd 2>/dev/null || which -a bd 2>/dev/null || true)
+$( { which -a bd 2>/dev/null || type -a -p bd 2>/dev/null; } || true )
 EOF
   [ -n "$bins" ] || return 0  # no bd at all — say nothing
 
-  first_path=""; first_ver=""
-  newer_path=""; newer_ver=""
-  drift_path=""; drift_ver=""
+  # Describe each bd relative to the PIN (not to PATH position — position can flip
+  # depending on whether BIN_DIR has landed on PATH yet at hook time).
+  pin_path=""                  # a bd on PATH that matches the pin exactly
+  newer_path=""; newer_ver=""  # a bd strictly NEWER than the pin (the hazard)
+  drift_path=""; drift_ver=""  # first bd whose version != the pin (any direction)
   _IFS_save="$IFS"; IFS=:
   for bd_path in $bins; do
     IFS="$_IFS_save"
     ver="$("$bd_path" version 2>/dev/null | head -1 | cut -d' ' -f3)"
     [ -n "$ver" ] || { IFS=:; continue; }
-    [ -n "$first_path" ] || { first_path="$bd_path"; first_ver="$ver"; }
-    # Any bd whose version differs from the pin is drift worth recording.
-    if [ "$ver" != "$VERSION" ] && [ -z "$drift_path" ]; then
-      drift_path="$bd_path"; drift_ver="$ver"
-    fi
-    # A bd strictly NEWER than the pin is the hazardous case (schema-ahead board).
-    if [ -z "$newer_path" ] && [ "$(semver_cmp "$ver" "$VERSION")" = "gt" ]; then
-      newer_path="$bd_path"; newer_ver="$ver"
+    if [ "$ver" = "$VERSION" ]; then
+      [ -n "$pin_path" ] || pin_path="$bd_path"
+    else
+      [ -n "$drift_path" ] || { drift_path="$bd_path"; drift_ver="$ver"; }
+      if [ -z "$newer_path" ] && [ "$(semver_cmp "$ver" "$VERSION")" = "gt" ]; then
+        newer_path="$bd_path"; newer_ver="$ver"
+      fi
     fi
     IFS=:
   done
@@ -94,10 +100,16 @@ EOF
     return 0
   fi
 
+  # The plugin's own pinned copy, if it happens to be on PATH — the "pinned bd" we
+  # name in the warning. Fall back to BIN_DIR/bd (where we install it) so the
+  # message is correct even when the pinned copy is NOT the first bd resolved.
+  pinned_label="${pin_path:-$BIN_DIR/bd}"
+
   mkdir -p "$DATA_DIR" 2>/dev/null || return 0
   if [ -n "$newer_path" ]; then
-    # The dangerous shadowing case: pinned bd in front, newer bd behind it.
-    log "WARNING: a NEWER bd ($newer_ver at $newer_path) is on PATH behind the pinned bd ($first_ver at $first_path)."
+    # The dangerous case: a bd NEWER than the pin is on PATH. If the pinned copy
+    # resolves before it, the pinned bd's writes fail on a schema-ahead board.
+    log "WARNING: a bd NEWER than the pin is on PATH: $newer_ver at $newer_path (plugin pins $VERSION; pinned copy at $pinned_label)."
     log "  If this project's board has been migrated to the newer bd's schema, EVERY write from the pinned bd will fail with:"
     log "    Error 1105: Field id doesn't have a default value"
     log "  — silently (issues/comments are NOT created; agent handoff writes are lost). See the beads-health-check skill."
@@ -105,7 +117,7 @@ EOF
       echo "found-version: $newer_ver"
       echo "pinned-version: $VERSION"
       echo "path: $newer_path"
-      echo "pinned-path: $first_path"
+      echo "pinned-path: $pinned_label"
       echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
       echo "reason: newer bd shadowed behind pinned copy (Bench-usv); pinned writes fail Error 1105 on a migrated board"
     } > "$DATA_DIR/pin-drift" 2>/dev/null || true
