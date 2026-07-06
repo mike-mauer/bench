@@ -25,33 +25,133 @@ VERSION="${VERSION#v}"
 DATA_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}"
 BIN_DIR="$DATA_DIR/bin"
 
-# Non-blocking pin check for a bd we did NOT just install: warn and drop a
-# breadcrumb ($DATA_DIR/pin-drift) if its version doesn't match the pin, remove
-# any stale breadcrumb if it does. Never changes the exit code.
+# semver compare: echoes "gt" if $1 > $2, "lt" if <, "eq" if equal. Best-effort;
+# on any unparseable (non-numeric) input it stays silent so callers no-op.
+semver_cmp() {
+  _a="$1"; _b="$2"
+  case "$_a$_b" in *[!0-9.]*) return 0;; esac  # non-numeric — bail quietly
+  _IFS_save="$IFS"; IFS=.
+  # shellcheck disable=SC2086  # deliberate word-split on '.'
+  set -- $_a; a1="${1:-0}"; a2="${2:-0}"; a3="${3:-0}"
+  # shellcheck disable=SC2086
+  set -- $_b; b1="${1:-0}"; b2="${2:-0}"; b3="${3:-0}"
+  IFS="$_IFS_save"
+  for pair in "$a1 $b1" "$a2 $b2" "$a3 $b3"; do
+    # shellcheck disable=SC2086
+    set -- $pair
+    { [ "$1" -gt "$2" ]; } 2>/dev/null && { echo gt; return 0; }
+    { [ "$1" -lt "$2" ]; } 2>/dev/null && { echo lt; return 0; }
+  done
+  echo eq
+}
+
+# Non-blocking pin/shadowing check across ALL bd on PATH (root cause #2 of
+# Bench-usv). Enumerates every `bd` via `command -v -a` / `which -a` — not just
+# the first — because the plugin's pinned copy sits first and hides any newer
+# system bd behind it. A newer-than-pin bd behind the pin is the dangerous case:
+# on a board already migrated to that newer bd's schema (e.g. v53), the pinned
+# bd's writes hard-fail with `Error 1105: Field id doesn't have a default value`
+# — silently, so agent handoff writes are lost. We warn loudly (naming BOTH
+# binaries + the symptom) and drop a breadcrumb; we never auto-switch (running
+# the newer bd could one-way-migrate the board). A stale breadcrumb is removed
+# when the only bd(s) on PATH match the pin. Never changes the exit code.
 check_pin_drift() {
-  bd_path="$1"
-  found="$("$bd_path" version 2>/dev/null | head -1 | cut -d' ' -f3)"
-  [ -n "$found" ] || return 0  # couldn't determine version — say nothing
-  if [ "$found" != "$VERSION" ]; then
-    log "WARNING: bd on PATH is $found but the plugin pins $VERSION — see the beads-health-check skill for drift policy."
-    mkdir -p "$DATA_DIR" 2>/dev/null || return 0
+  # Enumerate ALL bd on PATH, dedup preserving order. `which -a` / `type -a` are
+  # the reliable enumerators — do NOT use `command -v -a`: POSIX `command -v`
+  # takes no `-a` and either errors or returns only the FIRST match, which is the
+  # first-only blindness this whole function exists to fix.
+  bins=""
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    case "$p" in /*) : ;; *) continue;; esac  # keep absolute paths only
+    [ -x "$p" ] || continue
+    case ":$bins:" in *":$p:"*) continue;; esac
+    bins="${bins:+$bins:}$p"
+  done <<EOF
+$( { which -a bd 2>/dev/null || type -a -p bd 2>/dev/null; } || true )
+EOF
+  [ -n "$bins" ] || return 0  # no bd at all — say nothing
+
+  # Describe each bd relative to the PIN (not to PATH position — position can flip
+  # depending on whether BIN_DIR has landed on PATH yet at hook time).
+  pin_path=""                  # a bd on PATH that matches the pin exactly
+  newer_path=""; newer_ver=""  # a bd strictly NEWER than the pin (the hazard)
+  drift_path=""; drift_ver=""  # first bd whose version != the pin (any direction)
+  _IFS_save="$IFS"; IFS=:
+  for bd_path in $bins; do
+    IFS="$_IFS_save"
+    ver="$("$bd_path" version 2>/dev/null | head -1 | cut -d' ' -f3)"
+    [ -n "$ver" ] || { IFS=:; continue; }
+    if [ "$ver" = "$VERSION" ]; then
+      [ -n "$pin_path" ] || pin_path="$bd_path"
+    else
+      [ -n "$drift_path" ] || { drift_path="$bd_path"; drift_ver="$ver"; }
+      if [ -z "$newer_path" ] && [ "$(semver_cmp "$ver" "$VERSION")" = "gt" ]; then
+        newer_path="$bd_path"; newer_ver="$ver"
+      fi
+    fi
+    IFS=:
+  done
+  IFS="$_IFS_save"
+
+  # Clean: the only bd(s) on PATH match the pin exactly.
+  if [ -z "$drift_path" ]; then
+    rm -f "$DATA_DIR/pin-drift" 2>/dev/null || true
+    return 0
+  fi
+
+  # The plugin's own pinned copy, if it happens to be on PATH — the "pinned bd" we
+  # name in the warning. Fall back to BIN_DIR/bd (where we install it) so the
+  # message is correct even when the pinned copy is NOT the first bd resolved.
+  pinned_label="${pin_path:-$BIN_DIR/bd}"
+
+  mkdir -p "$DATA_DIR" 2>/dev/null || return 0
+  if [ -n "$newer_path" ]; then
+    # The dangerous case: a bd NEWER than the pin is on PATH. If the pinned copy
+    # resolves before it, the pinned bd's writes fail on a schema-ahead board.
+    log "WARNING: a bd NEWER than the pin is on PATH: $newer_ver at $newer_path (plugin pins $VERSION; pinned copy at $pinned_label)."
+    log "  If this project's board has been migrated to the newer bd's schema, EVERY write from the pinned bd will fail with:"
+    log "    Error 1105: Field id doesn't have a default value"
+    log "  — silently (issues/comments are NOT created; agent handoff writes are lost). See the beads-health-check skill."
     {
-      echo "found-version: $found"
+      echo "found-version: $newer_ver"
       echo "pinned-version: $VERSION"
-      echo "path: $bd_path"
+      echo "path: $newer_path"
+      echo "pinned-path: $pinned_label"
       echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      echo "reason: newer bd shadowed behind pinned copy (Bench-usv); pinned writes fail Error 1105 on a migrated board"
     } > "$DATA_DIR/pin-drift" 2>/dev/null || true
   else
-    rm -f "$DATA_DIR/pin-drift" 2>/dev/null || true
+    # Older or otherwise-divergent bd — the pre-existing generic drift warning.
+    log "WARNING: bd on PATH is $drift_ver ($drift_path) but the plugin pins $VERSION — see the beads-health-check skill for drift policy."
+    {
+      echo "found-version: $drift_ver"
+      echo "pinned-version: $VERSION"
+      echo "path: $drift_path"
+      echo "date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$DATA_DIR/pin-drift" 2>/dev/null || true
   fi
   return 0
 }
 
-# Export bd's likely locations on PATH for the rest of the session — unconditionally
-# and up front, so bd is usable the moment the (possibly detached) install lands.
+# Expose bd's likely locations on PATH for the rest of the session, so bd is
+# usable the moment the (possibly detached) install lands.
+#
+# Root cause #1 (Bench-usv): we must NOT unconditionally PREPEND BIN_DIR — once
+# the pinned copy exists it would shadow any pre-existing (possibly newer) system
+# bd forever, in every project, contradicting the "respect an existing install"
+# design. So: if a bd is already resolvable on PATH, we only APPEND our fallback
+# locations (the system bd stays first); only when no bd is present do we put
+# BIN_DIR up front, since our pinned install is then the only candidate.
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   {
-    echo "export PATH=\"$BIN_DIR:\$PATH:\$HOME/.local/bin\""
+    if command -v bd >/dev/null 2>&1; then
+      # A bd already resolves — respect it; append our dirs behind it.
+      echo "export PATH=\"\$PATH:$BIN_DIR:\$HOME/.local/bin\""
+    else
+      # No bd yet — the pinned copy we're about to install must lead.
+      echo "export PATH=\"$BIN_DIR:\$PATH:\$HOME/.local/bin\""
+    fi
     if command -v go >/dev/null 2>&1; then
       echo "export PATH=\"\$PATH:$(go env GOPATH 2>/dev/null)/bin\""
     fi
@@ -60,15 +160,21 @@ fi
 
 # Already have bd somewhere on PATH? Respect it — nothing to install.
 if command -v bd >/dev/null 2>&1; then
-  check_pin_drift "$(command -v bd)"
+  check_pin_drift   # enumerates ALL bd on PATH, not just the first
   bash "$(dirname "${BASH_SOURCE[0]}")/beads-bootstrap.sh" >/dev/null 2>&1 || true
   exit 0
 fi
 
 # Already installed our pinned copy in a previous session?
 if [ -x "$BIN_DIR/bd" ]; then
-  check_pin_drift "$BIN_DIR/bd"
+  check_pin_drift
   bash "$(dirname "${BASH_SOURCE[0]}")/beads-bootstrap.sh" >/dev/null 2>&1 || true
+  exit 0
+fi
+
+# Test hook: skip the detached network install so the bats suite is hermetic.
+# (SessionStart always runs the real path; this var is set only by tests/.)
+if [ -n "${BENCH_TEST_NO_INSTALL:-}" ]; then
   exit 0
 fi
 
