@@ -55,13 +55,44 @@ The block is delimited so it can be refreshed idempotently on future runs.
 4. Do NOT configure a GitHub sync token here — leave it env-only (the health-check skill
    explains why). Do NOT run `bd github sync`.
 
-## Step 3 — Fix project settings (de-dupe hooks)
+## Step 3 — Fix project settings (`.claude/settings.json`)
+Two edits to the project's `.claude/settings.json` (create it if absent). Show the user the
+diff before saving, and leave unrelated keys untouched.
+
+### 3a — De-dupe hooks
 The Bench plugin and the `beads` plugin it depends on both supply SessionStart behavior. If
 this project's own `.claude/settings.json` has a hand-rolled `SessionStart` hook running
 `bd prime` (or `worktree-reap`, or a beads bootstrap script), it now **double-fires** with the
-plugin-provided hooks. Inspect `.claude/settings.json` and **remove the now-duplicate
-`bd prime` SessionStart entry** (and any hand-rolled worktree-reap / beads-bootstrap entries
-the plugin now provides). Leave unrelated hooks untouched. Show the user the diff before saving.
+plugin-provided hooks. **Remove the now-duplicate `bd prime` SessionStart entry** (and any
+hand-rolled worktree-reap / beads-bootstrap entries the plugin now provides).
+
+### 3b — Make web/cloud sessions load Bench (`enabledPlugins`)
+A local `claude plugin install` writes enablement to **`~/.claude/settings.json`** (user
+scope), which **does not travel to Claude Code on the web** — a cloud session is a fresh
+container that clones only the repo. So without committed config, a web session has no Bench
+plugin: the `planner`/`engineer`/`qa`/`reviewer` **subagent identities never register** (the
+orchestrator has nothing to spawn) and the SessionStart hooks never fire (so `bd` isn't even
+installed). Web sessions load plugins **only** from the repo's committed `.claude/settings.json`.
+
+Ensure that file declares the marketplace and enables both plugins (merge into any existing
+`extraKnownMarketplaces` / `enabledPlugins`; don't clobber other entries):
+```json
+{
+  "extraKnownMarketplaces": {
+    "bench": { "source": { "source": "github", "repo": "mike-mauer/bench" } },
+    "beads-marketplace": { "source": { "source": "github", "repo": "gastownhall/beads" } }
+  },
+  "enabledPlugins": [
+    { "marketplace": "beads-marketplace", "plugin": "beads" },
+    { "marketplace": "bench", "plugin": "bench" }
+  ]
+}
+```
+`beads` is enabled alongside `bench` because Bench depends on it for the `bd prime` hooks (the
+manifest can't declare that cross-marketplace dependency — see the README note). If the project
+installed Bench from a fork or a different marketplace, adjust the `repo` accordingly. This edit
+is what makes the harness usable in cloud sessions; it's a no-op for local sessions where the
+plugin is already enabled at user scope. Remind the user to **commit** `.claude/settings.json`.
 
 ## Step 4 — Permissions allowlist (optional, ask first)
 Offer to add common harness commands to `.claude/settings.local.json` `permissions.allow`
@@ -77,7 +108,8 @@ For each role in `--with`:
 
 ## Step 6 — Report
 Summarize: CLAUDE.md block (added/refreshed, with the version+hash), beads board state +
-prefix, settings changes made, permissions added, and which optional roles were installed.
+prefix, settings changes made (hook de-dupe **and** the `enabledPlugins` web-enablement from
+Step 3b), permissions added, and which optional roles were installed.
 Remind the user to commit the changes (`CLAUDE.md`, `.beads/`, `.claude/`). If the project
 needs a role beyond the built-ins and the two optional templates, point them at
 `/bench:new-agent <name>` — custom roles are project-owned and auto-discovered, so they do

@@ -3,6 +3,22 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## Unreleased — cloud/web sessions register the subagent roles
+- **Fix: the pipeline is usable in Claude Code on the web.** A local `claude plugin install`
+  records enablement in user-scope `~/.claude/settings.json`, which never reaches a cloud
+  session (a fresh container that clones only the repo). The result: the `planner`/`engineer`/
+  `qa`/`reviewer` **subagent identities never register** ("subagent identities don't exist") and
+  the SessionStart hooks don't fire, so `bd` isn't installed either — the whole harness is offline.
+- **`/bench:init` now commits web enablement (Step 3b).** In addition to de-duping hooks, init
+  writes `enabledPlugins` (`bench` + its `beads` dependency) and the matching
+  `extraKnownMarketplaces` sources into the project's `.claude/settings.json` — the only place a
+  web session loads plugins from. Merges into existing keys; a no-op for local sessions.
+- **`/bench:doctor` check 2 flags a missing web-enablement config**, naming it as the usual cause
+  of the cloud "subagent identities don't exist" symptom.
+- **This repo now self-hosts Bench in the cloud** via its own committed `.claude/settings.json`.
+- README gains a **Cloud / web sessions** section documenting the config. Installed projects
+  should re-run `/bench:init` to pick up Step 3b; no `CLAUDE.bench.md` change.
+
 ## 0.3.2 — context belongs on the bead, not the dispatch prompt
 - **Orchestrator: a context-placement rule + tripwire on the dispatch step.** Step 5 now names
   the three kinds of context and their homes — **spec** (scope, acceptance criteria, security/

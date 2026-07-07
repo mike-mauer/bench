@@ -49,6 +49,31 @@ claude plugin install bench@bench            # user scope (default); --scope pro
 > (`beads@bench`, which doesn't exist) and blocks enablement. Install `beads`
 > yourself first — it's a standard plugin most projects already have.
 
+## Cloud / web sessions (Claude Code on the web)
+`claude plugin install` writes enablement to **user scope** (`~/.claude/settings.json`), which
+**does not travel to a cloud session** — Claude Code on the web runs in a fresh container that
+clones only the repo. Without committed config, a web session has no Bench: the
+`planner`/`engineer`/`qa`/`reviewer` **subagent identities never register** and the SessionStart
+hooks don't fire (so `bd` isn't installed either). That's the usual "subagent identities don't
+exist" blocker in the cloud.
+
+`/bench:init` (Step 3b) fixes this by committing the plugin enablement to the repo's
+`.claude/settings.json` — web sessions load plugins **only** from there:
+```json
+{
+  "extraKnownMarketplaces": {
+    "bench": { "source": { "source": "github", "repo": "mike-mauer/bench" } },
+    "beads-marketplace": { "source": { "source": "github", "repo": "gastownhall/beads" } }
+  },
+  "enabledPlugins": [
+    { "marketplace": "beads-marketplace", "plugin": "beads" },
+    { "marketplace": "bench", "plugin": "bench" }
+  ]
+}
+```
+Commit that file and your next web session bootstraps the marketplace, registers the four
+subagent roles, and runs the hooks. `/bench:doctor` (check 2) flags its absence.
+
 ## Upgrade
 ```bash
 claude plugin update bench
