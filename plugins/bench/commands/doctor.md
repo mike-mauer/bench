@@ -17,6 +17,13 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
    `install-bd` hook when it detects or causes drift) and surface its contents as ⚠️.
 2. **Plugins active** — `claude plugin list` should show `bench` enabled and its `beads`
    dependency enabled. Missing beads → ⚠️ (`claude plugin install beads@beads-marketplace`).
+   - **Web/cloud enablement** — a local install lives in user-scope `~/.claude/settings.json`
+     and does **not** reach Claude Code on the web (which clones only the repo). Check the
+     project's committed `.claude/settings.json` for an `enabledPlugins` entry enabling `bench`
+     (and `beads`) plus the matching `extraKnownMarketplaces` source. Absent → ⚠️ web sessions
+     won't register the `planner`/`engineer`/`qa`/`reviewer` subagents or fire the hooks; fix by
+     running `/bench:init` (Step 3b). This is the usual cause of "subagent identities don't
+     exist" in a cloud session.
 3. **Beads board** — `.beads/` exists and `bd ready` returns without error. Cold/empty board
    → note the `beads-bootstrap` hook rehydrates it, or run `bd bootstrap` manually.
    - **Rehydrate recoverability (RED)** — the `beads-bootstrap` hook can clear the local

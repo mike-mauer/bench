@@ -1,3 +1,21 @@
 {
+  "extraKnownMarketplaces": {
+    "bench": {
+      "source": {
+        "source": "github",
+        "repo": "mike-mauer/bench"
+      }
+    },
+    "beads-marketplace": {
+      "source": {
+        "source": "github",
+        "repo": "gastownhall/beads"
+      }
+    }
+  },
+  "enabledPlugins": [
+    { "marketplace": "beads-marketplace", "plugin": "beads" },
+    { "marketplace": "bench", "plugin": "bench" }
+  ],
   "hooks": {}
 }
