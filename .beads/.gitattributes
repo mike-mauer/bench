@@ -1,0 +1,12 @@
+# Beads JSONL files are one-way, DERIVED exports of the Dolt board. The real
+# source of truth is the Dolt history synced via refs/dolt/data on origin, which
+# merges at the cell level and never text-conflicts. These exports, by contrast,
+# are plain text that sessions re-generate — so parallel / ephemeral cloud
+# containers collide on the same lines and produce spurious merge conflicts.
+#
+# `merge=union` is a BUILT-IN git merge strategy (no .git/config driver to
+# register, so it works on every fresh clone including cold cloud containers). It
+# tells git to keep BOTH sides instead of raising conflict markers. Any transient
+# duplicate / stale row is harmless: the next `bd export` rewrites the file clean
+# from the authoritative board. NEVER hand-resolve these files.
+*.jsonl merge=union

@@ -3,6 +3,26 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## Unreleased — no more `.beads/*.jsonl` merge conflicts in cloud containers
+- **Fix: parallel / ephemeral cloud sessions no longer collide on the beads JSONL.**
+  `.beads/issues.jsonl` and `.beads/interactions.jsonl` are git-tracked but are one-way,
+  **derived** exports of the Dolt board (the durable source of truth is `refs/dolt/data`, which
+  cell-merges and never text-conflicts). Every session re-exports them, so multiple cloud
+  containers produced spurious merge conflicts on the same lines on each commit.
+- **`.beads/.gitattributes` now marks `*.jsonl merge=union`** — a **built-in** git merge
+  strategy (no `.git/config` driver to register, so it survives fresh clones / cold containers).
+  Git keeps both sides instead of raising conflict markers; the next `bd export` rewrites the file
+  clean from the authoritative board. No board data can be lost this way — the JSONL is derived.
+- **Applied on three surfaces:** `/bench:init` (Step 2) writes + commits it for new setups;
+  `scripts/beads-bootstrap.sh` idempotently auto-writes it on SessionStart so **existing installs
+  pick up the fix without re-running `/bench:init`**; and this repo self-hosts it.
+- **`bench-orchestrator` skill:** the JSONL-resurrection warning now notes union-merge makes the
+  conflict auto-resolve, while keeping the "Workers don't commit `.beads/`; re-export from the
+  main tree" discipline (union-merge can leave a transient stale row until the next export).
+- No `CLAUDE.bench.md` change — the managed block is untouched, so installed projects do **not**
+  need to re-run `/bench:init` for this fix (bootstrap auto-heals it); re-running init is only
+  needed to commit `.beads/.gitattributes` up front.
+
 ## Unreleased — cloud/web sessions register the subagent roles
 - **Fix: the pipeline is usable in Claude Code on the web.** A local `claude plugin install`
   records enablement in user-scope `~/.claude/settings.json`, which never reaches a cloud

@@ -29,6 +29,27 @@ command -v bd >/dev/null 2>&1 || exit 0
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 [ -d "$ROOT/.beads" ] || exit 0   # not a beads project
 
+# ── JSONL merge strategy (auto-heal, idempotent, runs before the hydrate check) ──
+# .beads/*.jsonl (issues.jsonl, interactions.jsonl) are git-tracked but are one-way
+# DERIVED exports of the Dolt board. Parallel / ephemeral cloud containers each
+# re-export them and collide on the same lines → spurious merge conflicts on every
+# commit. A `merge=union` git attribute (a BUILT-IN strategy — no .git/config driver
+# to register, so it survives fresh clones) makes git keep both sides instead of
+# conflicting; the next `bd export` rewrites the file clean from the authoritative
+# board. We write it here, on the SessionStart path, so EXISTING installs pick up the
+# fix on their next session without re-running /bench:init. Best-effort; the file is
+# left in the working tree for the user to commit (a hook must never auto-commit).
+ga="$ROOT/.beads/.gitattributes"
+if ! grep -q 'merge=union' "$ga" 2>/dev/null; then
+  {
+    printf '# beads JSONL are one-way DERIVED exports of the Dolt board (source of truth:\n'
+    printf '# refs/dolt/data, which cell-merges). merge=union keeps both sides instead of\n'
+    printf '# conflicting; the next `bd export` rewrites clean. Never hand-resolve.\n'
+    printf '*.jsonl merge=union\n'
+  } >> "$ga" 2>/dev/null \
+    && log "wrote .beads/.gitattributes (merge=union) — commit it to stop JSONL merge conflicts."
+fi
+
 # A fresh/empty embedded DB reports "0"; a blank string means bd couldn't report
 # (don't treat that as "empty" — never destructive on an error).
 count="$(bd stats --json 2>/dev/null | grep -o '"total_issues"[: ]*[0-9]*' | grep -o '[0-9]*$' | head -1)"

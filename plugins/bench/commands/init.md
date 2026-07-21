@@ -52,7 +52,19 @@ The block is delimited so it can be refreshed idempotently on future runs.
    Then confirm it landed: `git ls-remote origin 'refs/dolt/*'` must return a ref. If the
    repo has no origin yet, tell the user the board is **local-only and not yet recoverable**,
    and to re-run `bd dolt push` once an origin exists.
-4. Do NOT configure a GitHub sync token here — leave it env-only (the health-check skill
+4. **Neutralize JSONL merge conflicts (`.beads/.gitattributes`).** `.beads/*.jsonl`
+   (`issues.jsonl`, `interactions.jsonl`) are git-tracked but are one-way DERIVED exports of
+   the Dolt board — parallel or ephemeral (cloud-container) sessions each re-export them and
+   text-conflict on every commit. Ensure `.beads/.gitattributes` marks them `merge=union` (a
+   built-in git strategy — no `.git/config` driver to register, so it works on fresh clones):
+   ```bash
+   ga=.beads/.gitattributes
+   grep -q 'merge=union' "$ga" 2>/dev/null || printf '*.jsonl merge=union\n' >> "$ga"
+   ```
+   Git then keeps both sides instead of raising conflict markers; the next `bd export` rewrites
+   the file clean from the authoritative board. Commit `.beads/.gitattributes`. (The SessionStart
+   bootstrap also auto-writes this for existing installs, but init should commit it up front.)
+5. Do NOT configure a GitHub sync token here — leave it env-only (the health-check skill
    explains why). Do NOT run `bd github sync`.
 
 ## Step 3 — Fix project settings (`.claude/settings.json`)
