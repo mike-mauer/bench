@@ -147,3 +147,36 @@ engine_dir_intact() {
   [ ! -e "$REPO/.beads/embeddeddolt" ]
   grep -q "^bd bootstrap --yes" "$BD_LOG"
 }
+
+# ── JSONL merge-conflict auto-heal (.beads/.gitattributes merge=union) ───────────
+
+@test "auto-writes .beads/.gitattributes with merge=union when absent" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'   # hydrated: reaches the gitattributes step
+  [ ! -e "$REPO/.beads/.gitattributes" ]
+
+  run bash "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  grep -q '\*\.jsonl merge=union' "$REPO/.beads/.gitattributes"
+  [[ "$output" == *"wrote .beads/.gitattributes"* ]]
+}
+
+@test "gitattributes auto-heal is idempotent and preserves existing content" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'
+  printf '# project-custom attr\n*.jsonl merge=union\n' > "$REPO/.beads/.gitattributes"
+
+  run bash "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  # merge=union not duplicated, and the pre-existing custom line is preserved.
+  [ "$(grep -c 'merge=union' "$REPO/.beads/.gitattributes")" -eq 1 ]
+  grep -q '# project-custom attr' "$REPO/.beads/.gitattributes"
+  [[ "$output" != *"wrote .beads/.gitattributes"* ]]
+}
+
+@test "gitattributes step is skipped entirely when bd is not on PATH" {
+  run env PATH="/usr/bin:/bin:/usr/sbin:/sbin" bash "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  [ ! -e "$REPO/.beads/.gitattributes" ]   # bailed at the bd guard, before the step
+}

@@ -74,6 +74,17 @@ exist" blocker in the cloud.
 Commit that file and your next web session bootstraps the marketplace, registers the four
 subagent roles, and runs the hooks. `/bench:doctor` (check 2) flags its absence.
 
+### No more `.beads/*.jsonl` merge conflicts
+The board's durable state lives in the Dolt history synced via `refs/dolt/data` (cell-level
+merge — it never text-conflicts). `.beads/issues.jsonl` and `.beads/interactions.jsonl` are
+git-tracked but are **one-way, derived exports**; when several sessions — especially ephemeral
+cloud containers — each re-export them, they collide on the same lines and produce spurious
+merge conflicts. `/bench:init` (and, for existing installs, the SessionStart bootstrap) now
+writes a `.beads/.gitattributes` that marks them `merge=union` — a built-in git strategy (no
+per-machine driver to register, so it works on fresh clones). Git keeps both sides instead of
+raising conflict markers, and the next `bd export` rewrites the file clean from the authoritative
+board. **Never hand-resolve these files** — trust the board and re-export.
+
 ## Upgrade
 ```bash
 claude plugin update bench
