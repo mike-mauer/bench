@@ -43,12 +43,25 @@ The block is delimited so it can be refreshed idempotently on future runs.
    rehydrate in `scripts/beads-bootstrap.sh` depends on it). `bd init` does NOT create it,
    and the cloud-push hook is web-only — so a local-only board has **no recovery source**
    unless this step runs. If the repo has an `origin` remote:
+   The URL form matters: a **bare `https://` URL is read by bd as a DoltHub (gRPC)
+   remote** and fails against GitHub; the `git+` prefix selects git transport, which is
+   what a GitHub-hosted `refs/dolt/data` needs.
    ```bash
-   git remote get-url origin >/dev/null 2>&1 && {
-     bd dolt remote add origin "$(git remote get-url origin)" 2>/dev/null || true
+   ORIGIN="$(git remote get-url origin 2>/dev/null || true)"
+   [ -n "$ORIGIN" ] && {
+     case "$ORIGIN" in
+       git@*:*)   DOLT_URL="git+ssh://${ORIGIN%%:*}/${ORIGIN#*:}" ;;
+       https://*) DOLT_URL="git+${ORIGIN%.git}.git" ;;
+       *)         DOLT_URL="$ORIGIN" ;;
+     esac
+     bd dolt remote add origin "$DOLT_URL" 2>/dev/null || true
      bd dolt push 2>&1   # writes refs/dolt/data to origin
    }
    ```
+   Check the output, not just the exit code: `bd dolt push` prints `No remote is configured
+   — skipping` and **exits 0** when the remote didn't register. (SessionStart's
+   `beads-bootstrap` re-registers it in every fresh container, since the remote lives in the
+   gitignored engine — but init should confirm the push channel works at least once here.)
    Then confirm it landed: `git ls-remote origin 'refs/dolt/*'` must return a ref. If the
    repo has no origin yet, tell the user the board is **local-only and not yet recoverable**,
    and to re-run `bd dolt push` once an origin exists.

@@ -3,6 +3,44 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## Unreleased — cloud bead persistence actually persists (Bench-cz6, Bench-4m0)
+- **Fix: the cloud-push hook reported success while doing nothing (Bench-cz6, P0).** `bd dolt push`
+  (bd 1.1.0) reads **neither** `BD_SYNC_REMOTE` **nor** `.beads/config.yaml`'s `sync.remote` — with
+  no Dolt remote registered it prints `No remote is configured — skipping` and **exits 0**.
+  `beads-cloud-push.sh` set only `BD_SYNC_REMOTE` and trusted the exit code, so on every Stop and
+  SessionEnd in a cloud session it deleted its failure marker and logged "bead writes pushed."
+  while the writes never left the container — the exact silent revert the script exists to prevent.
+  `push_once` now **proves** the push happened by inspecting the output, never `$?` alone.
+- **Fix: the Dolt remote is now materialized from something that is in git (Bench-4m0).**
+  `bd dolt remote add` writes to the gitignored engine, so *every* fresh cloud container starts
+  with no remote — the precondition for the above. `beads-bootstrap.sh` (SessionStart) now
+  registers it each cold start from the committed `sync.remote`, else the git `origin`, converting
+  to a form bd accepts: a **bare `https://` URL is read as a DoltHub gRPC remote** (which cannot
+  traverse an HTTP proxy), so it is rewritten to `git+https://…`; `git@host:org/repo` becomes
+  `git+ssh://…`. An existing remote is never overridden, and because `bd dolt remote add` also
+  rewrites the **tracked** `config.yaml`, a clean copy is snapshotted and restored — a hook must
+  not leave a tracked file dirty or bake a container's URL into the repo. `/bench:init` Step 2
+  registers the same corrected form.
+- **Failures are now fast, loud, and once.** A failure retrying cannot fix (no remote, a rejected
+  URL, a blocked transport) skips the backoff *and* the pull-reconcile — pulling a stale remote is
+  what reverts local closes. Each attempt is bounded (`BENCH_PUSH_TIMEOUT`, default 60s), and a
+  proven-broken channel trips a **session circuit breaker**: measured in a real cloud container, a
+  blocked `refs/dolt/*` push takes ~45s to return its 403, and Stop runs after *every* turn — with
+  the breaker that cost is paid once per session (47s → 0.01s per turn), and SessionEnd reports
+  from the stored verdict instead of paying it again. A *timeout* is treated as softer than a hard
+  refusal: it still keeps turns fast, but SessionEnd gets one last bounded attempt.
+- **The warning arrives while it still matters.** A broken channel used to surface only at
+  SessionEnd — too late in a container that gets reclaimed first, and invisible while the agent
+  kept writing beads it was about to lose. The first failing turn now says so in the transcript,
+  and names the channel that does work (`bd export -o .beads/issues.jsonl` + commit).
+- **`/bench:doctor`** gains a cloud-persistence row (remote registered? failure marker present?),
+  and records that `git push --dry-run … refs/dolt/x` is **not** a valid probe — it succeeds where
+  the real push is refused.
+- **Housekeeping:** SessionStart tightens `.beads` to `0700` (bd printed a permissions warning
+  before *every* call in a cloud clone, burying the warnings that matter) and gitignores the
+  hook's container-local breadcrumbs.
+- Covered by `tests/beads_cloud_push.bats` (11) and nine new cases in `tests/beads_bootstrap.bats`.
+
 ## Unreleased — install Bench from inside a cloud session (`cloud-install.sh`)
 - **New `scripts/cloud-install.sh`**, curl-able from a Claude Code cloud/web session:
   `curl -fsSL https://raw.githubusercontent.com/mike-mauer/bench/main/plugins/bench/scripts/cloud-install.sh | bash`.

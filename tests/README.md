@@ -38,5 +38,13 @@ bats tests/
   `<!-- BEGIN BENCH ... -->` in prose used to yield an empty hash, silencing the
   staleness warning entirely.
 
+- `beads_cloud_push.bats` — `plugins/bench/scripts/beads-cloud-push.sh`: that a
+  push counts only when the OUTPUT proves it (bd exits 0 on the "No remote is
+  configured" no-op, which the hook used to report as success), that failures
+  retrying cannot fix skip both the backoff and the pull-reconcile, the session
+  circuit breaker (a blocked channel is paid for once, not once per turn), the
+  timeout path (softer than a hard refusal — SessionEnd still gets one attempt),
+  and the web-only gate. A stub `bd` supplies each `dolt push` outcome.
+
 CI runs the same suite plus shellcheck (`--severity=warning`) and
 `claude plugin validate --strict` — see `.github/workflows/ci.yml`.

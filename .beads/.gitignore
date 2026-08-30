@@ -73,3 +73,7 @@ bd.db
 last_pull
 proxieddb/
 proxied_server_client_info.json
+
+# Bench: container-local breadcrumbs from the cloud-push hook.
+.cloud-push-failed
+.cloud-push-blocked
