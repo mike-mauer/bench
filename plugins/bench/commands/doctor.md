@@ -43,7 +43,8 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
    `/bench:init` and the drift-check hook also use):
    ```bash
    WANT=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/bench-hash.sh" "${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md")
-   HAVE=$(grep -o 'BEGIN BENCH[^>]*hash:[0-9a-f]*' CLAUDE.md 2>/dev/null | grep -o 'hash:[0-9a-f]*' | head -1 | cut -d: -f2)
+   # anchored to line start: a doc line that merely MENTIONS the marker is not the block
+   HAVE=$(grep -o '^<!-- BEGIN BENCH[^>]*hash:[0-9a-f]*' CLAUDE.md 2>/dev/null | grep -o 'hash:[0-9a-f]*' | head -1 | cut -d: -f2)
    echo "want=$WANT have=$HAVE"
    ```
    Absent or stale → ⚠️ run `/bench:init` to install/refresh the orchestrator rules.

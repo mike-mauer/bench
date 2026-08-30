@@ -29,6 +29,14 @@ All notable changes to the Bench plugin are documented here. Bump `version` in
 - `--dry-run` reports without writing; `BENCH_REPO`/`BENCH_REF` install from a fork or branch.
 - Board creation is deliberately left to `/bench:init` (it needs an issue prefix and a Dolt remote
   decision). Covered by `tests/cloud_install.bats`.
+- **Fix (found by running the new installer on this repo): the `<!-- BEGIN BENCH -->` marker is now
+  matched only at the START of a line.** A `CLAUDE.md` that merely *documents* the marker in prose
+  (this repo's own does, inside backticks mid-sentence) matched the old unanchored pattern first.
+  Two consequences, both now fixed and pinned by tests: the installer's in-place block replacement
+  treated that prose line as the block start and **deleted every line from it down to
+  `<!-- END BENCH -->`**; and `scripts/claudemd-drift-check.sh` read an EMPTY hash from it and so
+  went **silent on a genuinely stale block**. `/bench:doctor`'s documented extraction command is
+  anchored to match. New `tests/claudemd_drift_check.bats` covers the hook.
 
 ## Unreleased — no more `.beads/*.jsonl` merge conflicts in cloud containers
 - **Fix: parallel / ephemeral cloud sessions no longer collide on the beads JSONL.**

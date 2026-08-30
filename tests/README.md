@@ -32,5 +32,11 @@ bats tests/
   BENCH markers), plus `--dry-run` writing nothing. Hermetic: every test runs
   the script against the local checkout with `--no-bd`, so nothing is fetched.
 
+- `claudemd_drift_check.bats` — `plugins/bench/scripts/claudemd-drift-check.sh`:
+  stale/current/absent block reporting, that the hook never edits `CLAUDE.md`,
+  and the marker-anchoring regression — a file that merely *mentions*
+  `<!-- BEGIN BENCH ... -->` in prose used to yield an empty hash, silencing the
+  staleness warning entirely.
+
 CI runs the same suite plus shellcheck (`--severity=warning`) and
 `claude plugin validate --strict` — see `.github/workflows/ci.yml`.
