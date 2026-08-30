@@ -3,6 +3,33 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## Unreleased — install Bench from inside a cloud session (`cloud-install.sh`)
+- **New `scripts/cloud-install.sh`**, curl-able from a Claude Code cloud/web session:
+  `curl -fsSL https://raw.githubusercontent.com/mike-mauer/bench/main/plugins/bench/scripts/cloud-install.sh | bash`.
+- **Closes the bootstrap chicken-and-egg.** `claude plugin install` writes user scope, which a
+  cloud container never sees; the fix is the repo-scoped `.claude/settings.json` — but the command
+  that writes it (`/bench:init`) ships inside the plugin that isn't loaded. A project that has
+  never had Bench therefore could not be set up from the cloud at all. The script does it from a
+  plain shell, with no Claude CLI.
+- **What it writes** (all idempotent, all repo-scoped, nothing committed): the
+  `extraKnownMarketplaces` + `enabledPlugins` entries **merged** into any existing
+  `.claude/settings.json` (unrelated keys, hooks and permissions preserved; entries never
+  duplicated); the pinned `bd` into `~/.local/bin` so the **current** session has it (the
+  SessionStart hook only runs from the next one); the managed `CLAUDE.md` orchestrator block; and
+  `.beads/.gitattributes` (`merge=union`) when a board exists. `--with data-eng,design-reviewer`
+  installs the optional roles.
+- **Single-sources what it reuses:** the marker hash comes from the bundled `scripts/bench-hash.sh`
+  (fetched with the template when run over curl), so `/bench:init`, the drift-check hook and this
+  script can never disagree and warn "stale"; the `bd` pin is read from `plugin.json`'s
+  `bd_version` default rather than re-hardcoded.
+- **Refuses rather than clobbers:** an object-shaped `enabledPlugins`, an unparseable settings
+  file, or a `CLAUDE.md` with a `BEGIN BENCH` marker and no `END BENCH` are left untouched with
+  the snippet to merge by hand. Unlike the hook scripts (which must always exit 0), this one is
+  user-invoked: a failed settings write — the step that actually enables Bench — exits 1.
+- `--dry-run` reports without writing; `BENCH_REPO`/`BENCH_REF` install from a fork or branch.
+- Board creation is deliberately left to `/bench:init` (it needs an issue prefix and a Dolt remote
+  decision). Covered by `tests/cloud_install.bats`.
+
 ## Unreleased — no more `.beads/*.jsonl` merge conflicts in cloud containers
 - **Fix: parallel / ephemeral cloud sessions no longer collide on the beads JSONL.**
   `.beads/issues.jsonl` and `.beads/interactions.jsonl` are git-tracked but are one-way,

@@ -43,6 +43,12 @@ claude plugin install bench@bench            # user scope (default); --scope pro
 /bench:init --with data-eng,design-reviewer --prefix Acme
 ```
 
+No local machine — installing from a Claude Code cloud/web session? `claude plugin install`
+doesn't survive there. Use the cloud install script instead (details below):
+```bash
+curl -fsSL https://raw.githubusercontent.com/mike-mauer/bench/main/plugins/bench/scripts/cloud-install.sh | bash
+```
+
 > **Note on the beads dependency.** Bench relies on the `beads` plugin for its
 > `bd prime` hooks, but does **not** declare it in `plugin.json` `dependencies`:
 > a bare `{ "name": "beads" }` resolves against Bench's *own* marketplace
@@ -73,6 +79,38 @@ exist" blocker in the cloud.
 ```
 Commit that file and your next web session bootstraps the marketplace, registers the four
 subagent roles, and runs the hooks. `/bench:doctor` (check 2) flags its absence.
+
+### Installing from inside a cloud session (`cloud-install.sh`)
+The catch: `/bench:init` writes that config, but it ships **inside the plugin that isn't
+loaded** — so from a cloud session on a project that has never had Bench, there is nothing to
+run. The cloud install script breaks that chicken-and-egg from a plain shell:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mike-mauer/bench/main/plugins/bench/scripts/cloud-install.sh | bash
+# options go after `-s --`:
+curl -fsSL <same url> | bash -s -- --with data-eng,design-reviewer
+```
+
+It writes the repo-scoped `.claude/settings.json` above (merged — unrelated keys, hooks and
+permissions survive; entries never duplicate), installs the pinned `bd` into `~/.local/bin` so
+the **current** session has it, injects the managed `CLAUDE.md` orchestrator block with the same
+marker + hash `/bench:init` uses, sets `.beads/.gitattributes` to `merge=union` if a board
+exists, and copies any `--with` roles. It never touches user scope and never commits.
+
+```
+--project-dir <path>   project to install into (default: git toplevel)
+--with <roles>         data-eng, design-reviewer
+--no-bd | --no-claudemd | --dry-run | --help
+BENCH_REPO / BENCH_REF / BEADS_REPO / BENCH_BIN_DIR   (env; BENCH_REPO for a fork)
+```
+
+Then **commit, start a new session** (plugins load at session start, from the committed
+settings) and run `/bench:init` — it creates the beads board, the one thing the script
+deliberately leaves alone, since it needs an issue prefix and a Dolt remote decision. Re-running
+the script is safe and idempotent; a failure to write `.claude/settings.json` — the step that
+actually enables Bench — is the one condition that exits non-zero, printing the snippet to merge
+by hand. From a checkout you already have, run it directly instead of over curl:
+`bash plugins/bench/scripts/cloud-install.sh`.
 
 ### No more `.beads/*.jsonl` merge conflicts
 The board's durable state lives in the Dolt history synced via `refs/dolt/data` (cell-level
@@ -109,7 +147,7 @@ plugins/bench/
 ├── hooks/hooks.json   SessionStart: install-bd, worktree-reap, drift-check
 │                       Stop: cloud-push (incremental)           (web-only bead persist)
 │                       SessionEnd: stop-guard, cloud-push (final)   (NOT bd prime — from beads dep)
-├── scripts/           the hook implementations
+├── scripts/           the hook implementations + cloud-install.sh (curl-able installer)
 └── templates/         CLAUDE.bench.md · custom-agent.md  (block + custom-role scaffold)
 ```
 

@@ -23,7 +23,10 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
      (and `beads`) plus the matching `extraKnownMarketplaces` source. Absent → ⚠️ web sessions
      won't register the `planner`/`engineer`/`qa`/`reviewer` subagents or fire the hooks; fix by
      running `/bench:init` (Step 3b). This is the usual cause of "subagent identities don't
-     exist" in a cloud session.
+     exist" in a cloud session. If Bench isn't loaded at all (so `/bench:init` doesn't exist —
+     the chicken-and-egg on a project that never had Bench), the fix is the curl-able installer:
+     `curl -fsSL https://raw.githubusercontent.com/mike-mauer/bench/main/plugins/bench/scripts/cloud-install.sh | bash`,
+     then commit and start a new session.
 3. **Beads board** — `.beads/` exists and `bd ready` returns without error. Cold/empty board
    → note the `beads-bootstrap` hook rehydrates it, or run `bd bootstrap` manually.
    - **Rehydrate recoverability (RED)** — the `beads-bootstrap` hook can clear the local
