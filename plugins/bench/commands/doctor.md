@@ -23,7 +23,10 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
      (and `beads`) plus the matching `extraKnownMarketplaces` source. Absent → ⚠️ web sessions
      won't register the `planner`/`engineer`/`qa`/`reviewer` subagents or fire the hooks; fix by
      running `/bench:init` (Step 3b). This is the usual cause of "subagent identities don't
-     exist" in a cloud session.
+     exist" in a cloud session. If Bench isn't loaded at all (so `/bench:init` doesn't exist —
+     the chicken-and-egg on a project that never had Bench), the fix is the curl-able installer:
+     `curl -fsSL https://raw.githubusercontent.com/mike-mauer/bench/main/plugins/bench/scripts/cloud-install.sh | bash`,
+     then commit and start a new session.
 3. **Beads board** — `.beads/` exists and `bd ready` returns without error. Cold/empty board
    → note the `beads-bootstrap` hook rehydrates it, or run `bd bootstrap` manually.
    - **Rehydrate recoverability (RED)** — the `beads-bootstrap` hook can clear the local
@@ -35,12 +38,27 @@ concise report. Do not modify any files. For each item, show ✅ / ⚠️ and th
    - **Engine location** — if `bd dolt show` resolves the engine under `~/.beads/` (global
      `beads_global` / `shared-server`) instead of repo-local `.beads/embeddeddolt`, ⚠️
      recommend a repo-local engine (a shared engine widens the bootstrap blast radius).
+   - **Cloud persistence (write path)** — the checks above cover *rehydrate*; in a cloud
+     session the failing half is writing back. When `CLAUDE_CODE_REMOTE=true`, also report:
+     ```bash
+     bd dolt remote list                      # must name a remote, else pushes silently no-op
+     ls .beads/.cloud-push-failed 2>/dev/null # breadcrumb from a failed SessionEnd push
+     ```
+     No remote → 🔴 `bd dolt push` prints "No remote is configured — skipping" and **exits 0**,
+     so bead writes never leave the container (SessionStart's `beads-bootstrap` registers one;
+     if it didn't, say why — no git origin, or an origin URL whose scheme it declines to guess).
+     Marker present → 🔴 show its contents; it names the last error and the recovery commands.
+     Note for the report: `git push --dry-run … refs/dolt/x` is **not** a valid probe — it
+     succeeds in environments where the real push is refused. The only true test is a real
+     `bd dolt push`. Where that channel is blocked, the durable fallback is a committed export
+     (`bd export -o .beads/issues.jsonl && git add .beads && git commit`).
 4. **CLAUDE.md block** — `CLAUDE.md` contains a `<!-- BEGIN BENCH ... -->` block. Extract its
    `hash:` and compare to the bundled template's hash (computed via the canonical helper
    `/bench:init` and the drift-check hook also use):
    ```bash
    WANT=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/bench-hash.sh" "${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md")
-   HAVE=$(grep -o 'BEGIN BENCH[^>]*hash:[0-9a-f]*' CLAUDE.md 2>/dev/null | grep -o 'hash:[0-9a-f]*' | head -1 | cut -d: -f2)
+   # anchored to line start: a doc line that merely MENTIONS the marker is not the block
+   HAVE=$(grep -o '^<!-- BEGIN BENCH[^>]*hash:[0-9a-f]*' CLAUDE.md 2>/dev/null | grep -o 'hash:[0-9a-f]*' | head -1 | cut -d: -f2)
    echo "want=$WANT have=$HAVE"
    ```
    Absent or stale → ⚠️ run `/bench:init` to install/refresh the orchestrator rules.

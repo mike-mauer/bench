@@ -20,6 +20,11 @@ setup() {
   # Isolate git from the developer's global/system config (hooks, defaults).
   export GIT_CONFIG_GLOBAL=/dev/null
   export GIT_CONFIG_NOSYSTEM=1
+  # …and from GIT_CONFIG_* env config, which a cloud container uses to inject
+  # url.insteadOf rewrites: those silently rewrite an ssh fixture URL to https,
+  # so a URL-form assertion would test the container, not the script.
+  unset GIT_CONFIG_COUNT
+  for i in 0 1 2 3 4 5 6 7 8 9; do unset "GIT_CONFIG_KEY_$i" "GIT_CONFIG_VALUE_$i"; done
   export GIT_AUTHOR_NAME="bats" GIT_AUTHOR_EMAIL="bats@test.invalid"
   export GIT_COMMITTER_NAME="bats" GIT_COMMITTER_EMAIL="bats@test.invalid"
 
@@ -45,6 +50,13 @@ setup() {
   cat > "$STUB_DIR/bd" <<'EOF'
 #!/usr/bin/env bash
 echo "bd $*" >> "$BD_LOG"
+case "$1 $2 $3" in
+  "dolt remote list") printf '%s\n' "${BD_REMOTE_LIST-No remotes configured.}"; exit 0 ;;
+  "dolt remote add")
+    # The real bd also writes sync.remote into the TRACKED .beads/config.yaml.
+    [ -n "${BD_CONFIG_FILE:-}" ] && printf 'sync.remote: "%s"\n' "$5" >> "$BD_CONFIG_FILE"
+    exit "${BD_REMOTE_ADD_EXIT:-0}" ;;
+esac
 case "$1" in
   stats)     printf '%s\n' "${BD_STATS_OUTPUT-}" ;;
   bootstrap) exit "${BD_BOOTSTRAP_EXIT:-0}" ;;
@@ -179,4 +191,111 @@ engine_dir_intact() {
 
   [ "$status" -eq 0 ]
   [ ! -e "$REPO/.beads/.gitattributes" ]   # bailed at the bd guard, before the step
+}
+
+# ── Dolt remote materialization + .beads permissions (Bench-4m0, Bench-fbc) ──────
+#
+# `bd dolt remote add` writes to the gitignored engine, so a fresh clone — every
+# cloud container — has no remote, and `bd dolt push` then no-ops while exiting 0
+# (Bench-cz6). Bootstrap must therefore re-register the remote from something that
+# IS in git on every cold start, in a URL form bd accepts.
+
+@test "cold container with no Dolt remote: registers one from the git origin, in git+ form" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'
+  git -C "$REPO" remote set-url origin "https://github.com/acme/widget.git"
+
+  run bash "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  # git+ selects git transport; a BARE https URL is read as a DoltHub gRPC remote.
+  grep -q '^bd dolt remote add origin git+https://github.com/acme/widget.git$' "$BD_LOG"
+  [[ "$output" == *"registered Dolt remote"* ]]
+}
+
+@test "an https origin without .git still yields exactly one .git suffix" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'
+  git -C "$REPO" remote set-url origin "https://github.com/acme/widget"
+
+  run bash "$SCRIPT"
+
+  grep -q '^bd dolt remote add origin git+https://github.com/acme/widget.git$' "$BD_LOG"
+}
+
+@test "an ssh origin is converted to bd's git+ssh form" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'
+  git -C "$REPO" remote set-url origin "git@github.com:acme/widget.git"
+
+  run bash "$SCRIPT"
+
+  grep -q '^bd dolt remote add origin git+ssh://git@github.com/acme/widget.git$' "$BD_LOG"
+}
+
+@test "committed config.yaml sync.remote wins over the git origin" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'
+  printf 'sync.remote: "git+ssh://git@github.com/acme/from-config.git"\n' > "$REPO/.beads/config.yaml"
+  git -C "$REPO" remote set-url origin "https://github.com/acme/from-origin.git"
+
+  run bash "$SCRIPT"
+
+  grep -q 'remote add origin git+ssh://git@github.com/acme/from-config.git$' "$BD_LOG"
+  ! grep -q 'from-origin' "$BD_LOG"
+}
+
+@test "an existing remote is never overridden" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'
+  export BD_REMOTE_LIST='origin               git+ssh://git@github.com/acme/chosen.git'
+
+  run bash "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  ! grep -q 'remote add' "$BD_LOG"
+}
+
+@test "a tracked config.yaml rewritten by bd is restored (no dirty file, no baked-in URL)" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'
+  git -C "$REPO" remote set-url origin "https://github.com/acme/widget.git"
+  printf '# project config\n' > "$REPO/.beads/config.yaml"
+  git -C "$REPO" add .beads/config.yaml
+  git -C "$REPO" commit -q -m "config"
+  export BD_CONFIG_FILE="$REPO/.beads/config.yaml"   # stub bd appends sync.remote
+
+  run bash "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  [ "$(cat "$REPO/.beads/config.yaml")" = "# project config" ]
+  git -C "$REPO" diff --quiet -- .beads/config.yaml
+  [[ "$output" == *"restored tracked .beads/config.yaml"* ]]
+}
+
+@test "an UNtracked config.yaml is left as bd wrote it" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'
+  git -C "$REPO" remote set-url origin "https://github.com/acme/widget.git"
+  printf '# scratch config\n' > "$REPO/.beads/config.yaml"   # not committed
+  export BD_CONFIG_FILE="$REPO/.beads/config.yaml"
+
+  run bash "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  grep -q 'sync.remote' "$REPO/.beads/config.yaml"
+  [[ "$output" != *"restored tracked"* ]]
+}
+
+@test "no git origin and no config: nothing is registered, exit 0" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'
+  git -C "$REPO" remote remove origin
+
+  run bash "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  ! grep -q 'remote add' "$BD_LOG"
+}
+
+@test ".beads is tightened to 0700 (bd warns on every call otherwise)" {
+  export BD_STATS_OUTPUT='{"total_issues": 5}'
+  chmod 755 "$REPO/.beads"
+
+  run bash "$SCRIPT"
+
+  [ "$status" -eq 0 ]
+  [ "$(stat -c %a "$REPO/.beads" 2>/dev/null || stat -f %Lp "$REPO/.beads")" = "700" ]
 }

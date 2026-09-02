@@ -36,12 +36,16 @@ hash_file() {
 
 want="$(hash_file "$TEMPLATE")"
 
-if [ ! -f "$CLAUDEMD" ] || ! grep -q 'BEGIN BENCH' "$CLAUDEMD" 2>/dev/null; then
+# The marker is matched ONLY at the start of a line: /bench:init writes it on its
+# own line, whereas prose that merely MENTIONS `<!-- BEGIN BENCH ... -->` (docs
+# about the block itself) is mid-line. Unanchored, such a mention matched first
+# with an EMPTY hash, and the staleness check below silently went quiet.
+if [ ! -f "$CLAUDEMD" ] || ! grep -q '^<!-- BEGIN BENCH' "$CLAUDEMD" 2>/dev/null; then
   log "no Bench block found in CLAUDE.md — run /bench:init to install the orchestrator rules."
   exit 0
 fi
 
-have="$(grep -o 'BEGIN BENCH[^>]*hash:[0-9a-f]*' "$CLAUDEMD" 2>/dev/null | grep -o 'hash:[0-9a-f]*' | head -1 | cut -d: -f2)"
+have="$(grep -o '^<!-- BEGIN BENCH[^>]*hash:[0-9a-f]*' "$CLAUDEMD" 2>/dev/null | grep -o 'hash:[0-9a-f]*' | head -1 | cut -d: -f2)"
 
 if [ -n "$have" ] && [ "$have" != "$want" ]; then
   log "the Bench block in CLAUDE.md is stale (have ${have}, ships ${want}) — run /bench:init to refresh."
