@@ -263,8 +263,13 @@ Phases 3 and 4 are the factory.
 
 ## 6. Things to decide (not defaults)
 
-- **GitHub Issues vs Linear** as the queue. Default GitHub for zero-friction; Linear only if
-  you want its delegation UI badly enough to run a bridge.
+- **GitHub Issues vs Linear** as the queue. **DECIDED: GitHub Issues.** The deciding reason:
+  every gate in the pipeline (`qa`, `design-reviewer`, `reviewer`) lands its verdict on the
+  PR, and the PR already lives in GitHub — keeping the work queue in the same system means
+  an issue, its dependency edges, its labels, and the PR that closes it are one graph with no
+  sync layer between two systems that would otherwise need to agree on state. Revisit Linear
+  when a human needs to work the queue daily from Linear's UI badly enough to justify running
+  a bridge (Routines or Cyrus) to keep it in step with GitHub.
 - **Action runner vs Routine `/fire`** as the execution host for the issue lane. Routine keeps
   execution in Claude Code cloud on subscription billing but is a research preview with a
   daily run cap; the Action is GA but token-billed and runs on Actions minutes. Start with the
