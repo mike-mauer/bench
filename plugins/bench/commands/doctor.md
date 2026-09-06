@@ -1,81 +1,62 @@
 ---
 name: doctor
-description: Read-only health check of the Bench harness install in this project — verifies bd is present at the pinned version, the plugin + its beads dependency are active, the CLAUDE.md orchestrator block is present and current, and reports anything that needs /bench:init or a manual fix. Does not modify anything.
+description: Read-only health check of the Bench v2 install in this project — verifies GitHub reachability, that the project's role/workflow copies match the plugin, that the labels and dispatch lane are installed, that the CLAUDE.md block is current, and that TDD order is enforced in CI. Does not modify anything.
 ---
 
-# /bench:doctor — verify the Bench harness install
+# /bench:doctor — verify the Bench v2 install
 
-Run a **read-only** diagnostic of the Bench harness in the current project and print a
-concise report. Do not modify any files. For each item, show ✅ / ⚠️ and the fix command.
+Run a **read-only** diagnostic of the Bench install in the current project and print one
+table: `Check | Status | Fix`, where Status is `PASS` / `WARN` / `FAIL`. Do not modify any
+files. Normative spec: `docs/factory-protocol.md`.
 
-1. **bd binary** — `command -v bd` and `bd version`. Compare against the configured pin
-   (the plugin's `bd_version`, default `1.1.0`). Missing → note that the SessionStart
-   `install-bd` hook installs it (may still be running in the background; check
-   `install.log` in the plugin data dir, `${CLAUDE_PLUGIN_DATA:-$HOME/.bench-data}`).
-   Version mismatch → ⚠️ (the `beads-health-check` skill covers version-drift policy).
-   Also check for a `pin-drift` breadcrumb in the plugin data dir (dropped by the
-   `install-bd` hook when it detects or causes drift) and surface its contents as ⚠️.
-2. **Plugins active** — `claude plugin list` should show `bench` enabled and its `beads`
-   dependency enabled. Missing beads → ⚠️ (`claude plugin install beads@beads-marketplace`).
-   - **Web/cloud enablement** — a local install lives in user-scope `~/.claude/settings.json`
-     and does **not** reach Claude Code on the web (which clones only the repo). Check the
-     project's committed `.claude/settings.json` for an `enabledPlugins` entry enabling `bench`
-     (and `beads`) plus the matching `extraKnownMarketplaces` source. Absent → ⚠️ web sessions
-     won't register the `planner`/`engineer`/`qa`/`reviewer` subagents or fire the hooks; fix by
-     running `/bench:init` (Step 3b). This is the usual cause of "subagent identities don't
-     exist" in a cloud session. If Bench isn't loaded at all (so `/bench:init` doesn't exist —
-     the chicken-and-egg on a project that never had Bench), the fix is the curl-able installer:
-     `curl -fsSL https://raw.githubusercontent.com/mike-mauer/bench/main/plugins/bench/scripts/cloud-install.sh | bash`,
-     then commit and start a new session.
-3. **Beads board** — `.beads/` exists and `bd ready` returns without error. Cold/empty board
-   → note the `beads-bootstrap` hook rehydrates it, or run `bd bootstrap` manually.
-   - **Rehydrate recoverability (RED)** — the `beads-bootstrap` hook can clear the local
-     engine, so verify a recovery source exists: either origin carries `refs/dolt/data`
-     (`git ls-remote --exit-code origin 'refs/dolt/data'`) **or** a committed non-empty
-     export (`git cat-file -s HEAD:.beads/issues.jsonl` > 0). **Neither → 🔴** the board is
-     local-only and unrecoverable; fix: `bd dolt remote add origin <url>` + `bd dolt push`,
-     and commit `.beads/issues.jsonl`.
-   - **Engine location** — if `bd dolt show` resolves the engine under `~/.beads/` (global
-     `beads_global` / `shared-server`) instead of repo-local `.beads/embeddeddolt`, ⚠️
-     recommend a repo-local engine (a shared engine widens the bootstrap blast radius).
-   - **Cloud persistence (write path)** — the checks above cover *rehydrate*; in a cloud
-     session the failing half is writing back. When `CLAUDE_CODE_REMOTE=true`, also report:
-     ```bash
-     bd dolt remote list                      # must name a remote, else pushes silently no-op
-     ls .beads/.cloud-push-failed 2>/dev/null # breadcrumb from a failed SessionEnd push
-     ```
-     No remote → 🔴 `bd dolt push` prints "No remote is configured — skipping" and **exits 0**,
-     so bead writes never leave the container (SessionStart's `beads-bootstrap` registers one;
-     if it didn't, say why — no git origin, or an origin URL whose scheme it declines to guess).
-     Marker present → 🔴 show its contents; it names the last error and the recovery commands.
-     Note for the report: `git push --dry-run … refs/dolt/x` is **not** a valid probe — it
-     succeeds in environments where the real push is refused. The only true test is a real
-     `bd dolt push`. Where that channel is blocked, the durable fallback is a committed export
-     (`bd export -o .beads/issues.jsonl && git add .beads && git commit`).
-4. **CLAUDE.md block** — `CLAUDE.md` contains a `<!-- BEGIN BENCH ... -->` block. Extract its
-   `hash:` and compare to the bundled template's hash (computed via the canonical helper
-   `/bench:init` and the drift-check hook also use):
+1. **GitHub reachability.** If `gh` is on `PATH`, run `gh auth status`. Otherwise confirm the
+   GitHub MCP tools are reachable — `ToolSearch` for `get_me`/`issue_read` if not already in
+   context, then call `get_me`. Neither reachable → **FAIL** ("no Worker can read or post to
+   an issue"). Fix: `gh auth login`, or connect the GitHub MCP server.
+2. **Built-in role files present and current.** For each of `planner`, `engineer`, `qa`,
+   `reviewer`: check `.claude/agents/<role>.md` exists and is byte-identical to
+   `${CLAUDE_PLUGIN_ROOT}/agents/<role>.md` (`diff -q`, or compare `bench-hash.sh` output on
+   both). Missing → **FAIL** (`/bench:init` copies them). Differs → **WARN**, "drifted from
+   the plugin copy" — a project should never hand-edit a built-in role; re-run `/bench:init`
+   to refresh, or rename it into a custom role if the difference is intentional.
+3. **Optional roles.** Same byte comparison against `${CLAUDE_PLUGIN_ROOT}/agents-optional/`
+   for any of `data-eng` / `design-reviewer` present in `.claude/agents/`. Report each as
+   installed-current, installed-drifted, or not installed (not installed is **PASS** — these
+   are opt-in, not required).
+4. **Custom roles.** List every other `.claude/agents/*.md`. For each, **WARN** if it still
+   has any unresolved `<<FILL: ...>>` placeholder in its `## Routing` block (`Spawn when`,
+   `Sits`, `On pass → NEXT`, `On fail → NEXT`) — the orchestrator can't place a role it can't
+   route.
+5. **Workflow file present and current.** `.claude/workflows/factory.js` exists and is
+   byte-identical to `${CLAUDE_PLUGIN_ROOT}/workflows/factory.js`. Missing → **FAIL**. Differs
+   → **WARN**. Fix either way: `/bench:init`.
+6. **Labels exist** (protocol §3). `gh label list --limit 200` (or the GitHub MCP
+   equivalent). Check for: `factory:ready`, `factory:in-progress`, `factory:approved`,
+   `needs-human`, `gate:engineer`, `gate:qa`, `gate:reviewer`, plus `gate:<role>` for every
+   optional/custom role found in checks 3–4, `type:epic`, `lane:ui`, `lane:data`,
+   `priority:p0`…`priority:p4`, `task`, `chore`. Any missing → **WARN**, list which. Fix:
+   `/bench:init` (Step 3).
+7. **CLAUDE.md block current.** Reuse the drift-check hook's exact logic:
    ```bash
    WANT=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/bench-hash.sh" "${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md")
-   # anchored to line start: a doc line that merely MENTIONS the marker is not the block
    HAVE=$(grep -o '^<!-- BEGIN BENCH[^>]*hash:[0-9a-f]*' CLAUDE.md 2>/dev/null | grep -o 'hash:[0-9a-f]*' | head -1 | cut -d: -f2)
    echo "want=$WANT have=$HAVE"
    ```
-   Absent or stale → ⚠️ run `/bench:init` to install/refresh the orchestrator rules.
-5. **Hooks duplication** — inspect the project's `.claude/settings.json`. If it still has a
-   hand-rolled `bd prime` SessionStart hook, ⚠️ it double-fires with the plugin/beads hooks →
-   run `/bench:init` (Step 3) to remove it.
-6. **Optional + custom roles** — list `.claude/agents/`. Report which of `data-eng` /
-   `design-reviewer` exist, and list any **custom roles** (other `*.md`, scaffolded by
-   `/bench:new-agent`). Flag any agent still containing `<<FILL: ...>>` placeholders (not
-   ready to route) and any custom role whose `## Routing` block still has an unresolved
-   `NEXT_PASS` / `NEXT_FAIL` / position (the orchestrator can't place it).
-7. **Worktrees** — report the count under `.claude/worktrees/` (the SessionStart
-   `worktree-reap` hook prunes merged/stale ones).
-8. **Board engine mode** — `bd info` (or `bd dolt show`); report `Mode:` (Bench's default is
-   embedded `direct`). Bench runs **every role's `bd` directly** against this one shared board —
-   agents reach it from worktrees via git-common-dir discovery — so in embedded mode there is no
-   server to check. **Do not run `bd doctor`** — it is unsupported in embedded mode.
+   Absent → **FAIL**. Present but `have != want` → **WARN**, "stale". Fix: `/bench:init`
+   (Step 1).
+8. **Dispatch lane.** Check `.github/workflows/factory-dispatch.yml`. If present, report
+   which template it matches (diff against both
+   `${CLAUDE_PLUGIN_ROOT}/templates/factory-dispatch-action.yml` and
+   `...-routine.yml`) and name the secret/variable it references (`ANTHROPIC_API_KEY`, plus
+   `BENCH_ROUTINE_ID` for the routine lane). This command can't read secret *values*, only
+   whether the workflow references them — say so, and **WARN** if a needed secret or
+   variable can't be confirmed to exist (`gh secret list` / `gh variable list`). Absent →
+   **WARN**, "no dispatch lane installed — issues won't auto-dispatch on labeling." Fix:
+   `/bench:init` (Step 4) — or note it may be intentional if the project relies only on the
+   sweep lane or manual dispatch.
+9. **TDD-order check in CI.** Search `.github/workflows/*.yml` for a step invoking
+   `scripts/tdd-order-check.sh`. Absent → **WARN**, "TDD commit order isn't enforced in CI."
+   Fix: `/bench:init` (Step 5), or add the snippet by hand.
 
-End with a one-line summary and, for any ⚠️, the exact command to resolve it. For a deep
-board audit, point the user at the `beads-health-check` skill.
+End with a one-line summary (counts of PASS/WARN/FAIL) and, for every non-PASS row, the exact
+fix command already shown in its row — don't make the user hunt back through the table.
