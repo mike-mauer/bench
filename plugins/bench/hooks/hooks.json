@@ -4,7 +4,8 @@
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/claudemd-drift-check.sh\"" }
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/claudemd-drift-check.sh\"" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/human-todos.sh\"" }
         ]
       }
     ]

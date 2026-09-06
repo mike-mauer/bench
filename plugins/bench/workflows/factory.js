@@ -29,8 +29,9 @@ const CUSTOM_ROLE_ANCHORS = ['start', 'engineer', 'data-eng', 'qa', 'design-revi
 // paragraph every call needs so the agent knows which surface to reach GitHub by.
 const GH =
   `Repo: ${REPO}. If \`gh\` is on PATH use it; otherwise use the GitHub MCP issue tools ` +
-  `(load them with ToolSearch first). Read the issue and its comments before acting — ` +
-  `the issue is the context, nothing was re-pasted into this prompt.\n\n` +
+  `(issue_read, add_issue_comment, issue_write, sub_issue_write, create_pull_request, ` +
+  `update_pull_request, get_me — load them with ToolSearch first). Read the issue and its ` +
+  `comments before acting — the issue is the context, nothing was re-pasted into this prompt.\n\n` +
   `Labels via MCP are replace-whole-set, not add/remove. issue_write's labels field is the ` +
   `GitHub update-issue endpoint's full replacement array — unlike \`gh issue edit ` +
   `--add-label/--remove-label\`, sending it is not additive. On the MCP path: issue_read the ` +
@@ -133,6 +134,18 @@ const ACK_SCHEMA = {
   properties: {
     ok: { type: 'boolean' },
     detail: { type: 'string' },
+  },
+  required: ['ok'],
+}
+
+// §15: the escalation agent also files (or links to) a human:todo issue. todoIssue is
+// optional — omitted only if filing itself failed, which escalate() logs as a fallback.
+const ESCALATE_SCHEMA = {
+  type: 'object',
+  properties: {
+    ok: { type: 'boolean' },
+    detail: { type: 'string' },
+    todoIssue: { type: 'number' },
   },
   required: ['ok'],
 }
@@ -304,9 +317,53 @@ async function release(number) {
   if (!ack || !ack.ok) log(`#${number}: could not remove factory:in-progress — a human should check labels`)
 }
 
-// §8. Bounce cap hit, or a Worker reported blocked.
-async function escalate(number, reason, detail) {
+// §15 wiring: a builder that reports `blocked` already files its own human:todo and
+// cites it in BLOCKERS (its handoff comment); build.summary often echoes that too. Pull
+// the issue number out so escalate() tells the escalation agent not to file a duplicate.
+function findTodoIssue(text) {
+  if (!text) return null
+  const m = /human:todo\D*#(\d+)/i.exec(text) || /\btodo\D*#(\d+)/i.exec(text)
+  return m ? Number(m[1]) : null
+}
+
+// §8 / §15. Bounce cap hit, or a Worker reported blocked. Either way, files a
+// `human:todo` issue alongside the needs-human label and escalation comment — pass
+// `existingTodo` when the caller already found one named in the builder's report, so the
+// escalation agent links it instead of filing a second one for the same wait.
+async function escalate(number, reason, detail, existingTodo) {
   log(`#${number}: ESCALATE — ${reason}`)
+  const todoInstruction = existingTodo
+    ? `A \`human:todo\` issue #${existingTodo} was already filed for this (cited in the ` +
+      `builder's BLOCKERS) — do not file a second one. Just make sure \`- #${existingTodo}\` ` +
+      `is under this issue's \`## Blocked by\` section (create the section if absent; on the ` +
+      `MCP path, issue_read then issue_write the full body), then report todoIssue: ${existingTodo}.`
+    : `File a \`human:todo\` issue with this body (verbatim headings):\n\n` +
+      `## What I need from you\n<one paragraph, plain English — the decision or action you ` +
+      `owe the factory, and why: is the spec ambiguous, is a finding real but bigger than this ` +
+      `issue, or is it an environment problem?>\n\n` +
+      `## Steps\n1. <concrete next action — e.g. the command to re-label \`factory:ready\` on ` +
+      `#${number} once decided, or the file/spec to amend>\n\n` +
+      `## When you're done\nClose this issue, then clear the escalation on #${number}: ` +
+      `\`gh issue edit ${number} --remove-label needs-human\` (MCP path: issue_read #${number}, ` +
+      `then issue_write the full label array minus \`needs-human\`). Removing that label is ` +
+      `what lets the factory pick #${number} up again.\n\n` +
+      `## Blocks\n- #${number}\n\n` +
+      `Assign it per this order, checking each candidate before use: (1) \`gh api user --jq ` +
+      `.login\` when \`gh\` exists, else the \`get_me\` MCP tool; (2) the parent epic's author, ` +
+      `then issue #${number}'s own author, in that order — the epic wins when both exist; (3) ` +
+      `the repository owner. Human check: before accepting any candidate from (1) or (2), ` +
+      `confirm it is a person, not the identity posting this issue (all comments come from one ` +
+      `GitHub identity, and planner-filed sub-issues are authored by that same identity) — run ` +
+      `\`gh api users/<login> --jq .type\` (or the MCP equivalent) and require \`User\`; reject a ` +
+      `login ending in \`[bot]\` or matching the posting identity. Skip a candidate that fails ` +
+      `the check and fall through to the next one. If no candidate resolves to a human, file the ` +
+      `to-do unassigned and @-mention the candidate humans you found (session user, epic author, ` +
+      `issue author, repository owner — whichever are known) in \`## What I need from you\` ` +
+      `instead of assigning a machine account. Then add \`- #<todo>\` under ` +
+      `#${number}'s \`## Blocked by\` section (create the section if absent; on the MCP path, ` +
+      `issue_read then issue_write the full body) and, where the API is reachable, a native ` +
+      `blocked-by edge. Report the filed issue's number as todoIssue.`
+
   const ack = await agent(
     `Escalate GitHub issue #${number} to a human. ${GH}\n\n` +
       `Reason: ${reason}.\n${detail || ''}\n\n` +
@@ -314,11 +371,15 @@ async function escalate(number, reason, detail) {
       `handoff comments, then post ONE paragraph: what keeps failing, the gate's last Blocking ` +
       `finding, the builder's last position, and your recommendation (spec ambiguous / finding ` +
       `real but bigger than this issue / environment problem). Add the label \`needs-human\`, ` +
-      `remove \`factory:in-progress\`. Do not re-dispatch anything. Report ok.`,
-    { label: `escalate #${number}`, phase: 'Escalate', model: 'haiku', schema: ACK_SCHEMA }
+      `remove \`factory:in-progress\`.\n\n${todoInstruction}\n\n` +
+      `Do not re-dispatch anything. Report ok and todoIssue.`,
+    { label: `escalate #${number}`, phase: 'Escalate', model: 'haiku', schema: ESCALATE_SCHEMA }
   )
   if (!ack || !ack.ok) log(`#${number}: escalation comment may not have posted — a human must be told out of band`)
-  return { issue: number, status: 'needs-human', reason: reason }
+  const todoIssue = (ack && ack.todoIssue) || existingTodo || null
+  if (todoIssue) log(`#${number}: human:todo #${todoIssue}`)
+  else log(`#${number}: no human:todo issue number reported — a human should check the issue was filed`)
+  return { issue: number, status: 'needs-human', reason: reason, todoIssue: todoIssue }
 }
 
 // ------------------------------------------------------------- per-issue loop
@@ -347,7 +408,7 @@ async function runIssue(number, t) {
     isolation: 'worktree',
   })
   if (!build) return await escalate(number, 'the builder returned nothing (agent died or was skipped)')
-  if (build.status !== 'done') return await escalate(number, 'the builder reported blocked', build.summary)
+  if (build.status !== 'done') return await escalate(number, 'the builder reported blocked', build.summary, findTodoIssue(build.summary))
   log(`#${number}: build done — ${build.pr || 'no PR url reported'} (${build.branch || 'branch not reported'})`)
 
   for (let g = 0; g < route.gates.length; g++) {
@@ -404,7 +465,7 @@ async function runIssue(number, t) {
         }
       )
       if (!fix) return await escalate(number, `the builder returned nothing on ${gate} fix round ${round}`)
-      if (fix.status !== 'done') return await escalate(number, `the builder reported blocked on ${gate} fix round ${round}`, fix.summary)
+      if (fix.status !== 'done') return await escalate(number, `the builder reported blocked on ${gate} fix round ${round}`, fix.summary, findTodoIssue(fix.summary))
       if (fix.pr) build = fix
       log(`#${number}: fix round ${round} done — re-running ${gate}`)
     }
@@ -471,7 +532,47 @@ async function runWaves(children, t) {
       if (pending.size > 0) {
         const stuck = Array.from(pending.keys())
         log(`dependency cycle or unresolvable blockers among ${stuck.join(', ')} — left for a human`)
-        for (let i = 0; i < stuck.length; i++) results.push({ issue: stuck[i], status: 'stalled', reason: 'unresolvable blockers' })
+        // §15: this is a substantial human ask (break a dependency cycle or fix a stale
+        // blocker) — a log line in a job/session transcript nobody reopens is not a record
+        // of it. File one human:todo on the epic naming every stuck child, instead of
+        // leaving this as log-only.
+        const stuckList = stuck.join(', #')
+        const todoAck = await agent(
+          `File a \`human:todo\` GitHub issue blocking epic #${ISSUE}. ${GH}\n\n` +
+            `Sub-issues #${stuckList} of epic #${ISSUE} cannot make progress: each is still ` +
+            `waiting on a \`## Blocked by\` blocker that will never close on its own — a ` +
+            `dependency cycle among them, or a blocker outside this wave that isn't closing. ` +
+            `Use this body (verbatim headings):\n\n` +
+            `## What I need from you\nEpic #${ISSUE}'s sub-issues #${stuckList} are stuck on ` +
+            `unresolvable \`## Blocked by\` dependencies — the factory found no order in which ` +
+            `any of them is ready to run.\n\n` +
+            `## Steps\n1. Open #${stuckList} and read each one's \`## Blocked by\` section.\n` +
+            `2. Find the cycle (or the blocker that will never close) and break it by editing ` +
+            `those \`## Blocked by\` sections — drop the stale entry or reorder the real ` +
+            `dependency.\n3. Re-label the affected issues \`factory:ready\`.\n\n` +
+            `## When you're done\nClose this issue once the blockers are fixed and the affected ` +
+            `issues are re-labeled \`factory:ready\` — that's what lets the factory pick them up ` +
+            `again.\n\n## Blocks\n- #${ISSUE}\n\n` +
+            `Assign it per §15's order, checking each candidate before use: (1) \`gh api user ` +
+            `--jq .login\` when \`gh\` exists, else the \`get_me\` MCP tool; (2) epic #${ISSUE}'s ` +
+            `author; (3) the repository owner. Human check: before accepting (1) or (2), confirm ` +
+            `it is a person, not the identity posting this issue — run \`gh api users/<login> ` +
+            `--jq .type\` (or the MCP equivalent) and require \`User\`; reject a login ending in ` +
+            `\`[bot]\` or matching the posting identity, and fall through to the next candidate ` +
+            `on failure. If no candidate resolves to a human, file the to-do unassigned and ` +
+            `@-mention the known candidates (session user, epic author, repository owner) in ` +
+            `\`## What I need from you\` instead of assigning a machine account. Then ` +
+            `add \`- #<todo>\` under #${ISSUE}'s \`## Blocked by\` section (create the section if ` +
+            `absent; on the MCP path, issue_read then issue_write the full body). Do not add ` +
+            `\`needs-human\` to #${ISSUE} or to any of #${stuckList} — that label is reserved for ` +
+            `a §8 gate bounce-cap escalation, and this isn't one. Report the filed issue's number ` +
+            `as todoIssue.`,
+          { label: `todo #${ISSUE} stuck children`, phase: 'Escalate', model: 'haiku', schema: ESCALATE_SCHEMA }
+        )
+        const todoIssue = (todoAck && todoAck.todoIssue) || null
+        if (todoIssue) log(`#${ISSUE}: human:todo #${todoIssue} filed for stuck children #${stuckList}`)
+        else log(`#${ISSUE}: could not confirm a human:todo was filed for stuck children #${stuckList} — a human should check`)
+        for (let i = 0; i < stuck.length; i++) results.push({ issue: stuck[i], status: 'stalled', reason: 'unresolvable blockers', todoIssue: todoIssue })
       }
       break
     }

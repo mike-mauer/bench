@@ -48,6 +48,14 @@ short-lived container. See `docs/software-factory-evaluation.md` for the full re
   and the readiness query, replacing `bd dep add` / `bd ready`.
 - **`scripts/migrate-beads-to-issues.py`**, a one-off script that converts
   `.beads/issues.jsonl` into GitHub issues with matching labels and `## Blocked by` edges.
+- **The `human:todo` rule**: any substantial expectation of the human (leaves the
+  conversation, outlives the session, or blocks pipeline work) is filed as a GitHub issue
+  labeled `human:todo` and assigned to the human, not left in a chat transcript — closing it
+  is the unblock. `/bench:todo "<what>"` files one in one step; every role reporting `STATUS:
+  blocked` files one; the workflow's escalation step files one alongside `needs-human`;
+  `/bench:init` files one for each secret/variable/label/Routine it can't create itself.
+  `scripts/human-todos.sh` plus a SessionStart hook surface the current user's open ones.
+  Protocol §15.
 
 **What's unchanged:** the role prompts' substance (the adversarial posture, the evidence
 bars, the routing table, the bounce cap), the plugin/marketplace packaging, and

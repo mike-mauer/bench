@@ -23,14 +23,14 @@ scripts/tdd-order-check.sh <base>..<head>                 # verify red-test-befo
 
 ## Architecture Overview
 
-This repo is a Claude Code plugin **marketplace** serving a single plugin: `.claude-plugin/marketplace.json` points at `./plugins/bench`. Inside `plugins/bench/`, `agents/` holds the core pipeline roles (planner, engineer, qa, reviewer) and `agents-optional/` the opt-in specialists (data-eng, design-reviewer) that `/bench:init --with` copies into a consuming project. `workflows/factory.js` is the saved dynamic Workflow that drives the per-issue loop end to end (triage → plan → build → gate loop → escalate). `skills/bench-orchestrator` carries the dispatch playbook. `commands/` holds the `/bench:*` slash commands (`init`, `doctor`, `new-agent`); `/bench:init` copies the agents and the workflow into a consuming project's `.claude/`, creates the GitHub labels from `docs/factory-protocol.md` §3, and installs a dispatch lane (`templates/factory-dispatch-action.yml` or `-routine.yml`) so a cloud session never depends on marketplace plugin loading. `hooks/hooks.json` wires only a SessionStart CLAUDE.md drift check (`scripts/claudemd-drift-check.sh`) — there is no bd install, worktree reaper, session-end guard, or cloud-push hook in v2. `scripts/` also carries `bench-hash.sh` (the managed-block hash), `gh-issue-dep.sh` (native `blocked by` edges), `factory-ready.sh` (dispatch readiness query), `tdd-order-check.sh` (CI gate), and `migrate-beads-to-issues.py` (one-off v1→v2 migration). See `docs/factory-protocol.md` §14 for the full layout.
+This repo is a Claude Code plugin **marketplace** serving a single plugin: `.claude-plugin/marketplace.json` points at `./plugins/bench`. Inside `plugins/bench/`, `agents/` holds the core pipeline roles (planner, engineer, qa, reviewer) and `agents-optional/` the opt-in specialists (data-eng, design-reviewer) that `/bench:init --with` copies into a consuming project. `workflows/factory.js` is the saved dynamic Workflow that drives the per-issue loop end to end (triage → plan → build → gate loop → escalate). `skills/bench-orchestrator` carries the dispatch playbook. `commands/` holds the `/bench:*` slash commands (`init`, `doctor`, `new-agent`); `/bench:init` copies the agents and the workflow into a consuming project's `.claude/`, creates the GitHub labels from `docs/factory-protocol.md` §3, and installs a dispatch lane (`templates/factory-dispatch-action.yml` or `-routine.yml`) so a cloud session never depends on marketplace plugin loading. `hooks/hooks.json` wires only a SessionStart CLAUDE.md drift check (`scripts/claudemd-drift-check.sh`) — there is no worktree reaper, session-end guard, or cloud-push hook in v2. `scripts/` also carries `bench-hash.sh` (the managed-block hash), `gh-issue-dep.sh` (native `blocked by` edges), `factory-ready.sh` (dispatch readiness query), `tdd-order-check.sh` (CI gate), and a one-off v1→v2 tracker-migration script. See `docs/factory-protocol.md` §14 for the full layout.
 
 ## Conventions & Patterns
 
 - **Hook scripts are best-effort:** every code path exits 0 — a hook must never block a session. They use `set -uo pipefail` (never `-e`) and log through a `log()` helper that prefixes each line (e.g. `[claudemd-drift-check] …`).
 - **Managed CLAUDE.md block:** the orchestrator block shipped in `templates/CLAUDE.bench.md` is versioned by an 8-char content hash (`<!-- BEGIN BENCH v:N hash:XXXX -->`, computed by `scripts/bench-hash.sh`) and managed by `/bench:init`; the drift-check hook warns when a project's copy goes stale.
 
-<!-- BEGIN BENCH v:2 hash:11f6a0a6 -->
+<!-- BEGIN BENCH v:2 hash:0e187796 -->
 ## Bench harness — operating rules
 
 This project uses **Bench**, a multi-agent software factory built on GitHub Issues. These
@@ -49,6 +49,10 @@ multiple roles, or spawning any Worker.
   gate that checks out a branch, with `isolation: worktree`. Never `checkout`/`switch` in
   the shared tree. (The `factory` workflow's own Agent-tool calls already set this; it only
   needs stating for dispatch you do yourself.)
+- A substantial expectation of the human is a `human:todo` issue assigned to them — never
+  only a chat message. Test: leaves the conversation / outlives the session / blocks
+  pipeline work. `/bench:todo` files one when the plugin is loaded; otherwise follow the §15
+  section of the `bench-orchestrator` skill in `.claude/skills/`.
 
 **After context compaction**, re-invoke `bench-orchestrator` before the next dispatch —
 compaction can drop the routing state this block depends on.
@@ -117,14 +121,15 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
 
 ### Session Completion
 When ending a work session:
-1. File issues for remaining work.
-2. Run quality gates on changed code (tests, lint, build).
-3. Update labels to reflect reality; nothing left `factory:in-progress` that no session
+1. File `human:todo` issues for every substantial ask of the human discussed this session.
+2. File issues for remaining work.
+3. Run quality gates on changed code (tests, lint, build).
+4. Update labels to reflect reality; nothing left `factory:in-progress` that no session
    owns, anything parked is `needs-human` with a comment saying why.
-4. **Commit locally** — leave changed work in small, focused commits (see Git Workflow).
-5. **Push / open PRs only with explicit authority.** Conservative is the default: report
+5. **Commit locally** — leave changed work in small, focused commits (see Git Workflow).
+6. **Push / open PRs only with explicit authority.** Conservative is the default: report
    what's ready and the exact commands (`git push`, `gh pr create …`), and run them only if
    the user/orchestrator granted authority this session or the project has explicitly
    opted in.
-6. Clean up stale branches.
+7. Clean up stale branches.
 <!-- END BENCH -->

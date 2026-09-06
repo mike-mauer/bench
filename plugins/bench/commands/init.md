@@ -64,11 +64,40 @@ if it's never copied in, that path doesn't exist wherever the plugin itself isn'
    load the marketplace plugin.
 5. Copy `${CLAUDE_PLUGIN_ROOT}/workflows/factory.js` → `.claude/workflows/factory.js`
    (overwrite — plugin-owned).
-6. Copy `${CLAUDE_PLUGIN_ROOT}/scripts/{factory-ready.sh,gh-issue-dep.sh,tdd-order-check.sh}`
-   → `.claude/scripts/` (overwrite — plugin-owned), then `chmod +x` each. These are the three
-   scripts referenced by bare `scripts/…` path elsewhere in the role prompts and the skill
+6. Copy
+   `${CLAUDE_PLUGIN_ROOT}/scripts/{factory-ready.sh,gh-issue-dep.sh,tdd-order-check.sh,human-todos.sh}`
+   → `.claude/scripts/` (overwrite — plugin-owned), then `chmod +x` each. The first three are
+   the scripts referenced by bare `scripts/…` path elsewhere in the role prompts and the skill
    (planner's dependency edges, the sweep lane, the engineer/reviewer TDD-order check) and by
    the CI job Step 5 installs — all of which now mean `.claude/scripts/…` in this project.
+   `human-todos.sh` is the protocol §15 reminder surface; copying it here is necessary but not
+   sufficient — Step 2.7 is what actually makes it run.
+7. Wire `human-todos.sh` into a SessionStart hook. The plugin's own `hooks/hooks.json` never
+   reaches a project (Step 2's preamble above), so without a project-owned hook, §15's "the
+   plugin runs it best-effort at SessionStart, so a new session starts with the outstanding asks
+   in view" is only true in a local session with the marketplace plugin loaded — silent in every
+   cloud session, Routine-lane session, or Actions run, which is exactly where a forgotten
+   `human:todo` costs the most. Merge into `.claude/settings.json`; never clobber an existing
+   file or its other keys/hooks:
+   ```bash
+   SETTINGS=.claude/settings.json
+   CMD="bash .claude/scripts/human-todos.sh"
+   [ -f "$SETTINGS" ] || { mkdir -p .claude; echo '{}' > "$SETTINGS"; }
+   if jq -e . "$SETTINGS" >/dev/null 2>&1; then
+     jq --arg cmd "$CMD" '
+       (.hooks.SessionStart // []) as $ss
+       | ($ss | map(.hooks[]?.command) | index($cmd)) as $present
+       | if $present == null then
+           .hooks.SessionStart = ($ss + [{"matcher": "", "hooks": [{"type": "command", "command": $cmd}]}])
+         else . end
+     ' "$SETTINGS" > "$SETTINGS.tmp" && mv "$SETTINGS.tmp" "$SETTINGS"
+   else
+     echo "$SETTINGS is not valid JSON — merge this hook entry by hand:"
+     echo '{"type":"command","command":"'"$CMD"'"}'
+   fi
+   ```
+   If `jq` isn't on `PATH`, or `.claude/settings.json` isn't valid JSON, print the hook entry
+   above and file a `human:todo` for it in Step 6 instead of leaving it silently unwired.
 
 ## Step 3 — Create the labels (protocol §3)
 If `gh` is on `PATH`:
@@ -80,7 +109,7 @@ for l in \
   "type:epic:5319E7" "lane:ui:C5DEF5" "lane:data:C5DEF5" \
   "priority:p0:B60205" "priority:p1:D93F0B" "priority:p2:FBCA04" \
   "priority:p3:C2E0C6" "priority:p4:EDEDED" \
-  "task:BFD4F2" "chore:BFD4F2"; do
+  "task:BFD4F2" "chore:BFD4F2" "human:todo:B60205"; do
   name="${l%:*}"; color="${l##*:}"
   gh label create "$name" --color "$color" --force
 done
@@ -142,12 +171,53 @@ job below points at `.claude/scripts/`, never a bare `scripts/…`.
 3. If no CI workflow exists, print that snippet and tell the user where to add it — don't
    invent a whole new CI pipeline just to host this one job.
 
-## Step 6 — Report
+## Step 6 — File human to-dos for what init could not do
+A plugin command can't set a GitHub secret, create a repo variable, or click through
+Settings pages itself. Per protocol §15, don't just print instructions and move on — file one
+`human:todo` issue (label from Step 3) for **each** outstanding item below that applies to
+this run, so the ask survives past this session instead of only living in the terminal
+scrollback. Use the §15 body template (`## What I need from you` / `## Steps` / `## When
+you're done` / `## Blocks`) with copy-pasteable `Steps`, and assign per the §15 resolution
+order in protocol §15 (init's to-dos block no pipeline issue, so its step 2 does not apply).
+
+- **`ANTHROPIC_API_KEY` secret** — if Step 4 installed a dispatch lane (`action` or
+  `routine`) and the secret isn't already set (`gh secret list` if reachable):
+  ```
+  gh secret set ANTHROPIC_API_KEY
+  ```
+  or Settings → Secrets and variables → Actions → New repository secret
+  (`https://github.com/<owner>/<repo>/settings/secrets/actions/new`), name
+  `ANTHROPIC_API_KEY`.
+- **`BENCH_ROUTINE_ID` variable + the Routine itself** — if Step 4 installed the `routine`
+  lane: create the Routine first (`create_trigger` with `create_new_session_on_fire: true`
+  and a prompt like "Run the factory workflow for the issue named in this message"), then
+  ```
+  gh variable set BENCH_ROUTINE_ID --body "<trig_... id from create_trigger>"
+  ```
+  or Settings → Secrets and variables → Actions → Variables → New repository variable
+  (`https://github.com/<owner>/<repo>/settings/variables/actions/new`), name
+  `BENCH_ROUTINE_ID`.
+- **Labels** — if Step 3 found `gh` absent and only printed the label list: the full
+  `gh label create` loop from Step 3 to run once `gh` is available, or the manual path via
+  Settings → Labels (`https://github.com/<owner>/<repo>/labels`).
+- **TDD-order CI snippet** — if Step 5 found no existing CI workflow to append to: the
+  `tdd-order:` job snippet Step 5 printed, and where to add it (a new
+  `.github/workflows/ci.yml`, or wherever the project's checks eventually live).
+- **`human-todos.sh` SessionStart hook** — if Step 2.7 couldn't merge it (`jq` missing, or
+  `.claude/settings.json` isn't valid JSON): the hook entry Step 2.7 printed, and where it
+  goes (`.claude/settings.json`'s `hooks.SessionStart`) — without it, §15's reminder surface
+  never runs in this project.
+
+Skip any item that doesn't apply this run (e.g. `--dispatch none`, or the secret/variable
+already exists). File nothing here if every item was already satisfied.
+
+## Step 7 — Report
 Summarize: the CLAUDE.md block (added or refreshed, with the version + hash), which agents,
-the `bench-orchestrator` skill, the workflow and the three scripts were copied or overwritten,
-which optional roles were installed, the labels created (or the printed list if `gh` was
-unavailable), the dispatch lane installed or skipped and the secrets/variables it still needs,
-and whether the TDD-order CI job was added or only printed. Remind the user to commit
-`CLAUDE.md`, `.claude/`, and `.github/workflows/`. Point them at `/bench:doctor` to verify the
-install, and at `/bench:new-agent <name>` for any role beyond the built-ins and the two
-optional templates.
+the `bench-orchestrator` skill, the workflow and the four scripts were copied or overwritten,
+whether the `human-todos.sh` SessionStart hook was merged into `.claude/settings.json` or only
+printed, which optional roles were installed, the labels created (or the printed list if `gh`
+was unavailable), the dispatch lane installed or skipped and the secrets/variables it still
+needs, and whether the TDD-order CI job was added or only printed. List every `human:todo` issue
+filed in Step 6, with its URL and what it covers. Remind the user to commit `CLAUDE.md`,
+`.claude/`, and `.github/workflows/`. Point them at `/bench:doctor` to verify the install, and
+at `/bench:new-agent <name>` for any role beyond the built-ins and the two optional templates.

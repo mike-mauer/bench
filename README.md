@@ -49,6 +49,14 @@ Every lane runs the same pipeline; they differ only in what triggers a session.
   that a test reproducing the exact error signature must fail before the fix, labels it
   `factory:ready`, and lets the pipeline run.
 
+## Working with a human
+
+Some steps only a human can do — set a secret, approve access, run something locally, make a
+judgment call. Those get filed as a `human:todo` issue, assigned to the human, instead of
+sitting in a chat transcript: closing the issue is what unblocks the pipeline issue it's wired
+to (`docs/factory-protocol.md` §15). A SessionStart reminder lists your open ones so a new
+session starts with the outstanding asks in view. File one yourself with `/bench:todo "<what>"`.
+
 ## What ships
 
 ```
@@ -57,10 +65,10 @@ plugins/bench/
 ├── agents-optional/   data-eng · design-reviewer               (templated; installed via --with)
 ├── skills/bench-orchestrator/SKILL.md
 ├── workflows/factory.js               (the saved dynamic Workflow — the orchestrator)
-├── commands/          init · doctor · new-agent
-├── hooks/hooks.json   SessionStart: CLAUDE.md drift check only
+├── commands/          init · doctor · new-agent · todo
+├── hooks/hooks.json   SessionStart: CLAUDE.md drift check · human-todos (best-effort)
 ├── scripts/           bench-hash.sh · claudemd-drift-check.sh · tdd-order-check.sh
-│                       gh-issue-dep.sh · factory-ready.sh · migrate-beads-to-issues.py
+│                       gh-issue-dep.sh · factory-ready.sh · human-todos.sh · migrate-beads-to-issues.py
 │                       cloud-install.sh (copies agents + workflow + block into a repo)
 └── templates/         CLAUDE.bench.md · custom-agent.md
                         factory-dispatch-action.yml · factory-dispatch-routine.yml

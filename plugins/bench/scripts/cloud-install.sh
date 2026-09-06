@@ -22,10 +22,17 @@
 # scripts/bench-hash.sh so /bench:doctor and the drift-check hook agree);
 # (6) --dispatch action|routine copies that dispatch template into
 # .github/workflows/factory-dispatch.yml (skipped if it already exists — may be
-# a customization, left for a human).
+# a customization, left for a human); (7) best-effort `gh label create --force`
+# for just `human:todo` and `needs-human` when `gh` is authenticated — without
+# these two labels, protocol §15's "file a human:todo" instruction fails on
+# every role prompt and the factory workflow's escalation step, on exactly the
+# repo this script is for (the plugin, and therefore /bench:init, never
+# loaded). Warns and moves on otherwise; the full §3 label set is still
+# /bench:init's job once it can run.
 #
-# No GitHub labels, no .claude/settings.json, no git commit — that's
-# /bench:init (once the plugin loads) or a human. This script only places files.
+# No .claude/settings.json, no git commit — that's /bench:init (once the
+# plugin loads) or a human. Past the two labels in step (7), this script only
+# places files.
 #
 # Sources from BENCH_REPO@BENCH_REF over curl/wget by default. Set
 # BENCH_SOURCE_DIR=<path to a plugins/bench checkout> to read from disk
@@ -246,6 +253,31 @@ if [ -n "$DISPATCH" ]; then
   else
     warn "dispatch: could not fetch/write templates/factory-dispatch-$DISPATCH.yml"
   fi
+fi
+
+# Step 7 — the two labels protocol §15 needs (best-effort). `gh issue create
+# --label` fails the whole command, issue and all, when a label doesn't exist
+# — so without this, a role that hits `STATUS: blocked` on a repo /bench:init
+# never ran on can't file the human:todo it just decided it needs, and the ask
+# is silently lost. Only human:todo and needs-human: enough for §15 filings
+# and §8 escalations to succeed; /bench:init still creates the rest of §3's
+# label set once the plugin loads.
+gh_retry() { if command -v timeout >/dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi; }
+if [ "$DRY_RUN" -eq 1 ]; then
+  log "would create labels: human:todo, needs-human (skipped — dry run)"
+elif ! command -v gh >/dev/null 2>&1; then
+  warn "labels: gh not on PATH — create human:todo (B60205) and needs-human (B60205) by hand, or once /bench:init can run (protocol §3)."
+elif ! gh_retry gh auth status >/dev/null 2>&1; then
+  warn "labels: gh is not authenticated — create human:todo (B60205) and needs-human (B60205) by hand, or once /bench:init can run (protocol §3)."
+else
+  for l in "human:todo:B60205" "needs-human:B60205"; do
+    name="${l%:*}"; color="${l##*:}"
+    if gh_retry gh label create "$name" --color "$color" --force >/dev/null 2>&1; then
+      log "labels: created/updated $name"
+    else
+      warn "labels: could not create $name — create it by hand (protocol §3)."
+    fi
+  done
 fi
 
 # Report.

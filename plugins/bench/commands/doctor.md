@@ -34,8 +34,8 @@ files. Normative spec: `docs/factory-protocol.md`.
    equivalent). Check for: `factory:ready`, `factory:in-progress`, `factory:approved`,
    `needs-human`, `gate:engineer`, `gate:qa`, `gate:reviewer`, plus `gate:<role>` for every
    optional/custom role found in checks 3–4, `type:epic`, `lane:ui`, `lane:data`,
-   `priority:p0`…`priority:p4`, `task`, `chore`. Any missing → **WARN**, list which. Fix:
-   `/bench:init` (Step 3).
+   `priority:p0`…`priority:p4`, `task`, `chore`, `human:todo`. Any missing → **WARN**, list
+   which. Fix: `/bench:init` (Step 3).
 7. **CLAUDE.md block current.** Reuse the drift-check hook's exact logic:
    ```bash
    WANT=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/bench-hash.sh" "${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.bench.md")
@@ -57,6 +57,14 @@ files. Normative spec: `docs/factory-protocol.md`.
 9. **TDD-order check in CI.** Search `.github/workflows/*.yml` for a step invoking
    `scripts/tdd-order-check.sh`. Absent → **WARN**, "TDD commit order isn't enforced in CI."
    Fix: `/bench:init` (Step 5), or add the snippet by hand.
+10. **Open `human:todo` issues for you** (protocol §15). Resolve the current user the same way
+    `/bench:todo` does (`gh api user --jq .login`, else `get_me`), then `gh issue list --label
+    human:todo --assignee @me --state open --json number,title,createdAt` (or the equivalent
+    MCP search/list). List the count and every `#<n> <title>` in the row regardless of status.
+    None → **PASS**, "0 open". Any open, all ≤14 days old → **PASS**. Any open ≥14 days old →
+    **WARN**, note which ones and their age. This is a report, not an install defect, so
+    there's nothing to "fix" beyond doing or delegating the to-dos themselves — the Fix column
+    reads "—".
 
 End with a one-line summary (counts of PASS/WARN/FAIL) and, for every non-PASS row, the exact
 fix command already shown in its row — don't make the user hunt back through the table.

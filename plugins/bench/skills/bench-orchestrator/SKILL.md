@@ -129,6 +129,36 @@ your recommendation), remove `factory:in-progress`, and stop. A third identical 
 loop has stopped converging and a human should break the tie. The workflow enforces this with
 `maxRounds`; in manual mode you enforce it.
 
+## Human actions are issues (§15)
+
+Something only a human can do (a secret, an approval, a decision needing research) does not
+live in a chat message — file it as a `human:todo` issue, assigned to the human, or it gets
+forgotten when the session ends.
+
+**File if any is true:** doing it leaves the conversation (run something locally, open a
+settings page, talk to someone); it will still matter after this session ends; pipeline work
+is blocked until it is done. Skip a quick yes/no the human answers in the next message.
+
+**Body (verbatim headings):** `## What I need from you` (one paragraph, plain English) ·
+`## Steps` (exact, copy-pasteable) · `## When you're done` (usually "close this issue" —
+closing is the unblock) · `## Blocks` (`- #<n>`, the pipeline issue waiting on this).
+
+**Wiring.** If it blocks pipeline issue `#n`, add `- #<todo>` under `#n`'s `## Blocked by`
+(§4) and, where reachable, a native blocked-by edge — `#n` drops out of §5 readiness until
+the to-do closes, and the sweep lane picks it up again automatically. Don't also label `#n`
+`needs-human` unless a gate escalated it (§8). A Worker reporting `STATUS: blocked` files the
+to-do itself and cites it in `BLOCKERS:`; the workflow's escalation step (§11) files one
+alongside `needs-human`, carrying the last Blocking finding and the builder's last position.
+
+**Assignee, in order:** the GitHub user connected to the session (`gh api user --jq .login`,
+else the `get_me` MCP tool) → the author of the pipeline issue being blocked (or its parent
+epic) → the repository owner. In the Action lane the token is a bot, so it falls to the
+second or third.
+
+`/bench:todo "<what>"` files one from a main session in one step; `/bench:init` files one for
+each secret, variable, label, or Routine it could not create itself. Session close (below)
+checks every substantial ask discussed this session has a `human:todo` issue — item 1.
+
 ## Model policy (§10)
 
 | Model | Use for |
@@ -192,12 +222,13 @@ the next one; on `blocked` it adds `needs-human` instead. The reviewer on `pass`
 
 ## Session close (you own this)
 
-1. Every actionable item discussed has a GitHub issue.
-2. Quality gates ran on changed code (tests, lint, build).
-3. Labels reflect reality: nothing left `factory:in-progress` that no session owns; anything
+1. Every substantial ask of the human discussed this session has a `human:todo` issue (§15).
+2. Every actionable item discussed has a GitHub issue.
+3. Quality gates ran on changed code (tests, lint, build).
+4. Labels reflect reality: nothing left `factory:in-progress` that no session owns; anything
    parked is `needs-human` with a comment saying why.
-4. **Commit locally** — small, focused commits.
-5. **Push / open PRs only with explicit authority.** Conservative is the default: report what is
+5. **Commit locally** — small, focused commits.
+6. **Push / open PRs only with explicit authority.** Conservative is the default: report what is
    ready and the exact commands (`git push`, `gh pr create …`), and run them only if the user
    granted authority this session or the project has explicitly opted in.
 

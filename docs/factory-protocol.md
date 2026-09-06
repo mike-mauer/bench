@@ -65,11 +65,12 @@ All comments are posted by one GitHub identity. **Attribution is the heading** o
 | `factory:ready` | human, planner, or Sentry-lane intake | Eligible for dispatch once it has no open blockers. |
 | `factory:in-progress` | orchestrator at dispatch | A session owns it. Removed on finish. |
 | `factory:approved` | reviewer on `pass` | PR is marked ready for review. Merge closes the issue. |
-| `needs-human` | orchestrator | Bounce cap hit, or a Worker reported `blocked`. Dispatch skips it. |
+| `needs-human` | orchestrator | Bounce cap hit (§8). Dispatch skips it. |
 | `gate:engineer` `gate:qa` `gate:design-reviewer` `gate:reviewer` | the role handing off | The **current gate**. Exactly one `gate:*` label at a time; the handing-off role removes its own and adds the next. Custom roles use `gate:<name>`. |
 | `type:epic` | planner / human | Parent issue; children are sub-issues. Never dispatched to a builder itself. |
 | `lane:ui` `lane:data` | planner | Routing lane. Absent = plain. |
 | `priority:p0` … `priority:p4` | planner / human | P0 = prod-down / security fail-open. P4 = backlog. |
+| `human:todo` | any role, the workflow, `/bench:init`, `/bench:todo` | A substantial action or decision **the human** owes the factory. Assigned to the human; closing it is the unblock. See §15. |
 
 Type uses GitHub's default `bug` / `enhancement` labels plus `task` and `chore` (created by
 init).
@@ -131,11 +132,13 @@ BLOCKERS: <none | description>
 ```
 
 After posting, the Worker moves the gate label: remove its own `gate:<role>`, add
-`gate:<NEXT>`. On `blocked`, add `needs-human` instead. The reviewer on `pass` adds
-`factory:approved`, marks the PR ready for review, and removes all `gate:*` labels. Every one
-of these moves follows the §2 read-modify-write rule on the MCP path — `gh issue edit
---add-label/--remove-label` needs no such care. The PR merge (by a human, or by auto-merge
-policy) closes the issue via `Closes #<n>`.
+`gate:<NEXT>`. On `blocked`, file the `human:todo` issue per §15, add `- #<todo>` under this
+issue's `## Blocked by` section, and remove your own `gate:<role>` label instead of moving it
+forward — do **not** add `needs-human`; that label is reserved for a §8 bounce-cap escalation.
+The reviewer on `pass` adds `factory:approved`, marks the PR ready for review, and removes all
+`gate:*` labels. Every one of these moves follows the §2 read-modify-write rule on the MCP
+path — `gh issue edit --add-label/--remove-label` needs no such care. The PR merge (by a
+human, or by auto-merge policy) closes the issue via `Closes #<n>`.
 
 ---
 
@@ -207,10 +210,11 @@ maxRounds?: 2 }`. No filesystem or network from the script: **all I/O goes throu
 3. **Per-issue loop:**
    - mark `factory:in-progress`, `gate:engineer` (haiku label agent, or fold into builder).
    - builder (`agentType` per lane; sonnet, opus if `securitySensitive`) → handoff
-     `{ status, pr, branch, summary }`. `blocked` → escalate, return.
+     `{ status, pr, branch, summary }`. `blocked` → the handoff already filed the
+     `human:todo` and moved labels per §6 (no `needs-human`); log it and return.
    - for each gate in the §9 route: run gate (`agentType` = role) → `{ status, round,
-     blocking[], summary }`. On `fail`: if `round >= maxRounds` → escalate (haiku) and
-     return; else run the builder again with the findings and re-run **the same gate**.
+     blocking[], summary }`. On `fail`: if `round >= maxRounds` → escalate (haiku: `needs-human` label,
+     escalation comment, and a `human:todo` issue per §15) and return; else run the builder again with the findings and re-run **the same gate**.
    - after the last gate passes: log the PR URL; return `{ issue, pr, status: 'approved' }`.
 4. Every agent call carries `phase` (`'Triage' | 'Plan' | 'Build' | 'QA' | 'Review' |
    'Escalate'`) and a `label` naming the issue. Use `pipeline()` for waves, `parallel()` only
@@ -263,10 +267,10 @@ plugins/bench/
 ├── agents-optional/   data-eng · design-reviewer
 ├── skills/bench-orchestrator/SKILL.md
 ├── workflows/factory.js
-├── commands/          init · doctor · new-agent
-├── hooks/hooks.json   SessionStart: claudemd-drift-check only
+├── commands/          init · doctor · new-agent · todo
+├── hooks/hooks.json   SessionStart: claudemd-drift-check · human-todos (best-effort)
 ├── scripts/           bench-hash.sh · claudemd-drift-check.sh · tdd-order-check.sh
-│                      gh-issue-dep.sh · factory-ready.sh · migrate-tracker-to-issues.py
+│                      gh-issue-dep.sh · factory-ready.sh · migrate-beads-to-issues.py
 │                      cloud-install.sh (copies agents + workflow + block into a repo)
 └── templates/         CLAUDE.bench.md · custom-agent.md
                        factory-dispatch-action.yml · factory-dispatch-routine.yml
@@ -276,3 +280,73 @@ plugins/bench/
 the consuming repo's `.claude/` and `.github/workflows/`, so a cloud session never depends on
 marketplace plugin loading. Everything belonging to the v1 tracker (its scripts, hooks, tests,
 data directory, plugin dependency, and version config) is deleted, not deprecated.
+
+---
+
+## 15. Human actions are issues (agent–human collaboration)
+
+The factory regularly needs something only a human can do: set a secret, approve access, run
+a command on a machine the agent cannot reach, make a decision that needs research, accept a
+scope change. Those expectations must not live in a chat transcript that gets forgotten.
+
+**Rule.** Whenever a substantial expectation of the human exists, file a GitHub issue labeled
+`human:todo`, **assigned to the human**, written in plain English with the specifics. Quick
+back-and-forth (a yes/no the human will answer in the next message, a choice among options
+shown inline, a clarification) is **not** filed.
+
+**Substantiality test — file if any is true:**
+1. Doing it requires leaving the conversation (run something locally, open a settings page,
+   make a purchase, talk to someone, research a decision).
+2. It will still matter after this session ends.
+3. Pipeline work is blocked until it is done.
+
+**Body template (verbatim headings):**
+```markdown
+## What I need from you
+<one paragraph, plain English, no jargon — what and why in two sentences>
+
+## Steps
+1. <exact command, script, or click path — copy-pasteable>
+2. <…>
+
+## When you're done
+<how the factory notices: usually "close this issue" — closing is the unblock>
+
+## Blocks
+- #<n>  (the pipeline issue waiting on this; omit the section if none)
+```
+
+**Wiring:**
+- If it blocks pipeline issue `#n`, add `- #<todo>` under `#n`'s `## Blocked by` section (§4)
+  and, where the API is reachable, a native blocked-by edge. `#n` then drops out of §5
+  readiness until the to-do is closed. Closing the to-do emits no event on `#n` itself, so
+  its `## When you're done` must tell the human to re-label `#n` `factory:ready` (remove
+  then re-add) — that's what fires the issue lane and resumes pipeline work. Do not also
+  label `#n` `needs-human` unless a gate escalated it (§8).
+- Every role that reports `STATUS: blocked` files the to-do and cites it in `BLOCKERS:`.
+- The `factory` workflow's escalation step (§11) files one alongside the `needs-human` label,
+  carrying the last Blocking finding and the builder's last position as the specifics.
+- `/bench:init` files one for each secret, variable, label or Routine it could not create
+  itself, instead of only printing instructions.
+- `/bench:todo "<what>"` files one from a main session in one step.
+- **Session close** (§13): every substantial expectation of the human discussed this session
+  has a `human:todo` issue. This is item 1 of the close checklist.
+
+**Assignee resolution (in order, each candidate checked before use):** (1) the session user —
+`gh api user --jq .login` when `gh` exists, else the `get_me` MCP tool; (2) the parent epic's
+author, then the pipeline issue's author (in that order — the epic wins when both exist); (3)
+the repository owner. **Human check:** before accepting any candidate from (1) or (2), confirm
+it is a person, not the identity posting this issue (§2: all comments come from one GitHub
+identity, and planner-filed sub-issues are authored by that same identity) — `gh api
+users/<login> --jq .type` must return `User`, and the login must not end in `[bot]`. Skip a
+candidate that fails the check or matches the posting identity and fall through to the next
+step. In the Action lane the token is a bot, so (1) always fails the check; (2) then applies
+unless the issue was planner-filed, in which case it fails too and (3) applies. **If no
+candidate resolves to a human,** file the to-do unassigned and @-mention the candidate humans
+(whichever of the session user, epic author, issue author, and repository owner are known) in
+`## What I need from you` — never assign it to a machine account, because the reminder surface
+(`scripts/human-todos.sh`, `--assignee @me`) will never find it there.
+
+**Reminder surface.** `scripts/human-todos.sh` lists the current user's open `human:todo`
+issues (title, number, what it blocks); the plugin runs it best-effort at SessionStart when
+`gh` is authenticated, so a new session starts with the outstanding asks in view.

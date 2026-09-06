@@ -16,6 +16,10 @@ multiple roles, or spawning any Worker.
   gate that checks out a branch, with `isolation: worktree`. Never `checkout`/`switch` in
   the shared tree. (The `factory` workflow's own Agent-tool calls already set this; it only
   needs stating for dispatch you do yourself.)
+- A substantial expectation of the human is a `human:todo` issue assigned to them — never
+  only a chat message. Test: leaves the conversation / outlives the session / blocks
+  pipeline work. `/bench:todo` files one when the plugin is loaded; otherwise follow the §15
+  section of the `bench-orchestrator` skill in `.claude/skills/`.
 
 **After context compaction**, re-invoke `bench-orchestrator` before the next dispatch —
 compaction can drop the routing state this block depends on.
@@ -84,13 +88,14 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
 
 ### Session Completion
 When ending a work session:
-1. File issues for remaining work.
-2. Run quality gates on changed code (tests, lint, build).
-3. Update labels to reflect reality; nothing left `factory:in-progress` that no session
+1. File `human:todo` issues for every substantial ask of the human discussed this session.
+2. File issues for remaining work.
+3. Run quality gates on changed code (tests, lint, build).
+4. Update labels to reflect reality; nothing left `factory:in-progress` that no session
    owns, anything parked is `needs-human` with a comment saying why.
-4. **Commit locally** — leave changed work in small, focused commits (see Git Workflow).
-5. **Push / open PRs only with explicit authority.** Conservative is the default: report
+5. **Commit locally** — leave changed work in small, focused commits (see Git Workflow).
+6. **Push / open PRs only with explicit authority.** Conservative is the default: report
    what's ready and the exact commands (`git push`, `gh pr create …`), and run them only if
    the user/orchestrator granted authority this session or the project has explicitly
    opted in.
-6. Clean up stale branches.
+7. Clean up stale branches.
