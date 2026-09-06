@@ -2,21 +2,13 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "bench",
   "displayName": "Bench",
-  "version": "0.4.0",
-  "description": "Beads-backed multi-agent orchestration harness for Claude Code: a planner/engineer/qa/reviewer pipeline, beads/dolt lifecycle hooks, worktree hygiene, and a one-time project initializer.",
+  "version": "1.0.0",
+  "description": "Multi-agent software factory for Claude Code, built on GitHub Issues: a planner/engineer/qa/reviewer pipeline driven by a saved Workflow, issue-lane/sweep-lane/Sentry-lane triggers, TDD-from-history enforcement, and a one-time project initializer.",
   "author": {
     "name": "Mike Mauer",
     "url": "https://github.com/mike-mauer"
   },
   "repository": "https://github.com/mike-mauer/bench",
   "license": "MIT",
-  "keywords": ["orchestration", "agents", "beads", "tdd", "workflow"],
-  "userConfig": {
-    "bd_version": {
-      "type": "string",
-      "title": "beads (bd) version to install",
-      "description": "Version of the beads CLI binary the SessionStart hook installs into the plugin data dir. Defaults to a known-good pin; override only if you need a different release.",
-      "default": "1.1.0"
-    }
-  }
+  "keywords": ["orchestration", "agents", "github-issues", "tdd", "workflow"]
 }

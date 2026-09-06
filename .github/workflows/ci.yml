@@ -53,3 +53,28 @@ jobs:
         run: npm install -g bats
       - name: Run test suite
         run: bats tests/
+
+  python-tests:
+    name: python-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      # stdlib-only unit tests for scripts/migrate-beads-to-issues.py
+      - name: Run python unit tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+  tdd-order:
+    name: tdd-order
+    # Dogfood the protocol §7 gate on factory branches only: the red test must be its own
+    # commit before any production change. Refactor/docs PRs on other branches are exempt.
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'factory/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check red-test-before-implementation commit order
+        run: bash plugins/bench/scripts/tdd-order-check.sh "origin/${{ github.base_ref }}..HEAD"
