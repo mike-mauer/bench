@@ -3,6 +3,70 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## 1.0.0 — Bench v2: GitHub Issues replace beads/Dolt
+
+Bench v2 is a rewrite, not an incremental release. Every plumbing problem the 0.x line spent
+its last several releases fighting — the blocked `refs/dolt/*` push channel in cloud
+containers, per-container Dolt remotes, `bd dolt push` silently no-op'ing, plugins that never
+loaded in a web session, `.beads/*.jsonl` merge conflicts between ephemeral containers — was a
+consequence of one decision: keeping work-tracking state in a local database inside a
+short-lived container. See `docs/software-factory-evaluation.md` for the full reasoning.
+
+**Removed:**
+- Beads/Dolt entirely — the `bd` binary, the embedded board, `refs/dolt/data` sync,
+  `.beads/`, the `beads` plugin dependency, the `bd_version` userConfig.
+- Every beads-lifecycle hook and guard script: `install-bd.sh`, `beads-bootstrap.sh`,
+  `beads-cloud-push.sh`, `beads-stop-guard.sh`, `guard-bd-actor.sh`, `guard-checkout.sh`,
+  `guard-task-tools.sh`, `worktree-reap.sh`, and the `beads-health-check` skill.
+- The worktree-isolation model for code Workers — mandatory `git worktree add` per Worker,
+  and the hooks that enforced and reaped it.
+- `--actor` / `BEADS_ACTOR` attribution plumbing — attribution is now the `## Handoff from
+  <role>` heading on a GitHub issue comment, posted by one GitHub identity.
+- The "orchestrator couriers context" model — a Worker no longer receives spec/pipeline
+  context pasted into its prompt; it reads the issue and its comments directly.
+- `docs/server-mode-migration.md` (a per-container `dolt sql-server` proposal) — superseded;
+  it fixed concurrency but not the blocked push channel or the reintroduced ops burden.
+- ~1,600 lines of bats tests covering the above.
+
+**What replaced it:**
+- **GitHub Issues** as the work queue: one issue = one unit of work, native sub-issues for
+  epics, native `blocked by` plus a portable `## Blocked by` body section for dependencies,
+  and a fixed label vocabulary (`factory:ready`, `factory:in-progress`, `gate:<role>`,
+  `factory:approved`, `needs-human`, `lane:*`, `priority:p0`–`p4`, `type:epic`) for pipeline
+  state — see `docs/factory-protocol.md` §3–§5.
+- **One cloud session per issue** as the execution unit; isolation is the container, so the
+  worktree guards are unnecessary.
+- **`.claude/workflows/factory.js`**, a saved dynamic Workflow, as the orchestrator: triage →
+  plan (epics only) → per-issue build/gate loop with a bounce cap → escalate. Protocol §11.
+- **Three trigger lanes**, all first-party: a GitHub Actions workflow or Claude Code Routine
+  firing on `factory:ready` (issue lane), a cron sweep of ready issues (sweep lane), and a
+  Sentry alert webhook that files an issue and runs the pipeline (Sentry lane). Protocol §12.
+- **`scripts/tdd-order-check.sh`**, a mechanical CI gate replacing the reviewer's prompted TDD
+  check: fails if a commit touches production code without an earlier test-only commit in the
+  same range.
+- **`scripts/gh-issue-dep.sh`** and **`scripts/factory-ready.sh`** for native dependency edges
+  and the readiness query, replacing `bd dep add` / `bd ready`.
+- **`scripts/migrate-beads-to-issues.py`**, a one-off script that converts
+  `.beads/issues.jsonl` into GitHub issues with matching labels and `## Blocked by` edges.
+- **The `human:todo` rule**: any substantial expectation of the human (leaves the
+  conversation, outlives the session, or blocks pipeline work) is filed as a GitHub issue
+  labeled `human:todo` and assigned to the human, not left in a chat transcript — closing it
+  is the unblock. `/bench:todo "<what>"` files one in one step; every role reporting `STATUS:
+  blocked` files one; the workflow's escalation step files one alongside `needs-human`;
+  `/bench:init` files one for each secret/variable/label/Routine it can't create itself.
+  `scripts/human-todos.sh` plus a SessionStart hook surface the current user's open ones.
+  Protocol §15.
+
+**What's unchanged:** the role prompts' substance (the adversarial posture, the evidence
+bars, the routing table, the bounce cap), the plugin/marketplace packaging, and
+`/bench:init` / `/bench:doctor` / `/bench:new-agent` as the setup and health-check surface —
+all rewritten against GitHub Issues but doing the same job.
+
+**Migration:** run `scripts/migrate-beads-to-issues.py` against your `.beads/issues.jsonl`,
+delete `.beads/`, then re-run `/bench:init`. The managed `CLAUDE.md` block bumped to `v:2` —
+every consumer must re-run `/bench:init` to pick it up; the SessionStart drift check will
+flag a stale `v:1` block until you do.
+
 ## Unreleased — cloud bead persistence actually persists (Bench-cz6, Bench-4m0)
 - **Fix: the cloud-push hook reported success while doing nothing (Bench-cz6, P0).** `bd dolt push`
   (bd 1.1.0) reads **neither** `BD_SYNC_REMOTE` **nor** `.beads/config.yaml`'s `sync.remote` — with

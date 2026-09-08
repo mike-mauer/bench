@@ -1,0 +1,42 @@
+# Bench v2 — issue-lane dispatch (Claude Code Routine).
+#
+# Installed by `/bench:init --dispatch routine` as .github/workflows/factory-dispatch.yml.
+# Alternative to the Action lane: instead of running the pipeline on an Actions runner, this
+# fires a pre-created Claude Code Routine, so the work runs in a Claude Code cloud session on
+# subscription billing (docs/factory-protocol.md §12, "Issue lane"). Needs a repo secret
+# ANTHROPIC_API_KEY and a repo variable BENCH_ROUTINE_ID naming the Routine to fire — create
+# the Routine once ahead of time (e.g. create_trigger with create_new_session_on_fire: true
+# and a standalone prompt such as "Run the factory workflow for the issue named in this
+# message"), and record its returned trig_... id as the BENCH_ROUTINE_ID repo variable.
+#
+# Routines are a research preview: the /fire endpoint and the anthropic-beta header below may
+# change without notice — re-check this template against current docs if the curl starts
+# failing with a version-related error.
+
+name: Bench factory dispatch
+
+on:
+  issues:
+    types: [labeled]
+
+concurrency:
+  group: factory-dispatch-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    if: github.event.label.name == 'factory:ready'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read   # this job only fires the Routine; the fired cloud session does the writing
+    steps:
+      - name: Fire the factory Routine
+        # curl -f turns a non-2xx response into a failed step (and a red check), instead of a
+        # bad secret or a stale BENCH_ROUTINE_ID silently doing nothing.
+        run: |
+          curl -sS -f -X POST \
+            "https://api.anthropic.com/v1/claude_code/routines/${{ vars.BENCH_ROUTINE_ID }}/fire" \
+            -H "Authorization: Bearer ${{ secrets.ANTHROPIC_API_KEY }}" \
+            -H "anthropic-beta: experimental-cc-routine-2026-04-01" \
+            -H "Content-Type: application/json" \
+            -d '{"text": "Run the factory workflow for issue #${{ github.event.issue.number }} in ${{ github.repository }}"}'
