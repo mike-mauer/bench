@@ -8,7 +8,22 @@
     }
   },
   "enabledPlugins": [
-    { "marketplace": "bench", "plugin": "bench" }
+    {
+      "marketplace": "bench",
+      "plugin": "bench"
+    }
   ],
-  "hooks": {}
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/human-todos.sh"
+          }
+        ]
+      }
+    ]
+  }
 }

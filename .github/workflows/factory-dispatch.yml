@@ -1,0 +1,64 @@
+# Bench v2 — issue-lane dispatch (GitHub Actions).
+#
+# Installed by `/bench:init --dispatch action` as .github/workflows/factory-dispatch.yml.
+# Fires the factory pipeline when a human, the planner, or the Sentry lane labels an issue
+# `factory:ready` (docs/factory-protocol.md §12, "Issue lane"). Runs on a GitHub Actions
+# runner — token-billed, generally available. Needs one repo secret: ANTHROPIC_API_KEY
+# (Settings → Secrets and variables → Actions → New repository secret).
+
+name: Bench factory dispatch
+
+on:
+  issues:
+    types: [labeled]
+
+# One in-flight dispatch per issue: a second `factory:ready` labeling event for the same
+# issue (e.g. a re-label after a manual fix) cancels any still-running job instead of
+# racing it, since both would try to move the same gate label.
+concurrency:
+  group: factory-dispatch-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    # `issues: [labeled]` fires on every label added to the repo. This gate keeps the job a
+    # no-op except on the one label that actually means "ready to run".
+    if: github.event.label.name == 'factory:ready'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # the builder commits to a feature branch and opens a PR
+      pull-requests: write   # opening / updating the draft PR
+      issues: write          # posting handoff comments, moving gate/status labels
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # full history: TDD-order checking and reviews read `git log`
+
+      - name: Run the factory workflow
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Authenticates `gh` deterministically (docs/factory-protocol.md §2, first path:
+          # "If `gh` is on PATH, use it"). The job's `permissions:` block above scopes what
+          # this token can do; it does not by itself put the token in the agent's shell —
+          # both `github_token` (for the action's own setup) and the `GH_TOKEN` env var (for
+          # `gh` invocations the agents make from Bash) are needed.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Run the factory workflow at .claude/workflows/factory.js with the Workflow tool
+            for issue #${{ github.event.issue.number }} in ${{ github.repository }}.
+            Call it as:
+              Workflow  script: .claude/workflows/factory.js
+                        args: { issue: ${{ github.event.issue.number }}, repo: "${{ github.repository }}" }
+            Report back the workflow's returned status.
+          # Pre-approve the tools the workflow and the agents it spawns need — this run is
+          # unattended, so anything missing here stalls on a permission prompt no one can answer.
+          # Both GitHub paths from docs/factory-protocol.md §2 are pre-approved: `gh` via Bash
+          # (authenticated by GH_TOKEN below) as the primary path, and the GitHub MCP tools the
+          # role prompts name as the fallback ("Otherwise use the GitHub MCP tools") — so a
+          # transient `gh` problem doesn't stall the run on an unanswerable permission prompt.
+          claude_args: >-
+            --allowedTools
+            "Bash,Edit,Write,Read,Glob,Grep,Workflow,Agent,Skill,ToolSearch,mcp__github__issue_read,mcp__github__issue_write,mcp__github__add_issue_comment,mcp__github__sub_issue_write,mcp__github__create_pull_request,mcp__github__update_pull_request,mcp__github__pull_request_read"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
