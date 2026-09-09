@@ -37,7 +37,7 @@ RUN gh auth status >/dev/null 2>&1 || exit 0
 REPO_ARGS=()
 [ -n "$REPO" ] && REPO_ARGS=(--repo "$REPO")
 
-listing="$(RUN gh issue list "${REPO_ARGS[@]}" --label human:todo --assignee @me --state open \
+listing="$(RUN gh issue list "${REPO_ARGS[@]+"${REPO_ARGS[@]}"}" --label human:todo --assignee @me --state open \
   --json number,title,body 2>/dev/null)" || exit 0
 
 [ -n "$listing" ] || exit 0

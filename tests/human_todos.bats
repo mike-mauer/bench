@@ -8,6 +8,8 @@
 # case must exit 0, and it must stay silent whenever there is nothing to
 # report or `gh` can't be used at all.
 
+bats_require_minimum_version 1.5.0
+
 SCRIPT="$BATS_TEST_DIRNAME/../plugins/bench/scripts/human-todos.sh"
 
 setup() {
@@ -80,4 +82,54 @@ EOF
   [[ "$output" == *"1 open to-do(s) for you:"* ]]
   [[ "$output" == *"#20 approve access"* ]]
   [[ "$output" != *"blocks"* ]]
+}
+
+# Regression coverage for the bash-3.2 "empty array under set -u" bug: on
+# bash < 4.4, `"${REPO_ARGS[@]}"` throws "unbound variable" when REPO_ARGS=()
+# even though the array was explicitly initialized. macOS ships bash 3.2.57
+# as /usr/bin/env bash's target, so this fires on every default-install Mac.
+# ubuntu-latest's bash 5 tolerates the naked expansion, so a purely
+# behavioral test of this can pass on CI even with the bug present — see the
+# static source-guard test below for the assertion that catches it there too.
+
+@test "no-args invocation (REPO unset): exit 0 and no 'unbound variable' leak on stderr" {
+  write_gh_stub 0 '[]'
+  run --separate-stderr bash "$SCRIPT"
+  [ "$status" -eq 0 ]
+  [[ "$stderr" != *"unbound variable"* ]]
+}
+
+@test "--repo <owner/name>: the flag still reaches gh issue list unmodified" {
+  cat > "$BIN/gh" <<'EOF'
+#!/usr/bin/env bash
+if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+  exit 0
+fi
+if [ "$1" = "issue" ] && [ "$2" = "list" ]; then
+  printf '%s\n' "$*" >> "$GH_ARGS_LOG"
+  echo '[]'
+  exit 0
+fi
+exit 1
+EOF
+  chmod +x "$BIN/gh"
+  export PATH="$BIN:$REAL_PATH"
+  export GH_ARGS_LOG="$BATS_TEST_TMPDIR/gh-args.log"
+  : > "$GH_ARGS_LOG"
+  run bash "$SCRIPT" --repo acme/widgets
+  [ "$status" -eq 0 ]
+  grep -qF -- '--repo acme/widgets' "$GH_ARGS_LOG"
+}
+
+@test "REPO_ARGS expansion uses a nounset-safe guard (static check; independent of the runner's bash version)" {
+  # A behavioral test alone can't be trusted here: bash >= 4.4 (ubuntu-latest's
+  # bash 5) legalized the naked "${REPO_ARGS[@]}" expansion under `set -u`
+  # when the array is empty, so a runtime-only assertion would pass on CI
+  # whether or not the bash-3.2 guard is present. Pin the guard operator
+  # itself (":+" or "+") in front of the `[@]` expansion on the line that
+  # feeds REPO_ARGS to `gh issue list`, without pinning one exact spelling of
+  # the fix (e.g. "${REPO_ARGS[@]+...}" and "${REPO_ARGS[@]:+...}" both pass).
+  line="$(grep 'gh issue list' "$SCRIPT")"
+  run grep -E 'REPO_ARGS\[@\]:?\+' <<< "$line"
+  [ "$status" -eq 0 ]
 }
