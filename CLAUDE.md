@@ -18,7 +18,7 @@ This repo is the source of the Bench plugin — there is no app to build. Qualit
 claude plugin validate ./plugins/bench --strict         # plugin manifest/structure validation
 shellcheck plugins/bench/scripts/*.sh                    # lint all shell scripts
 bats tests/                                               # script tests (tests/ is landing on a parallel branch)
-scripts/tdd-order-check.sh <base>..<head>                 # verify red-test-before-green commit order
+plugins/bench/scripts/tdd-order-check.sh <base>..<head>   # verify red-test-before-green commit order
 ```
 
 ## Architecture Overview
