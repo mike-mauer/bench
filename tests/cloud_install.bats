@@ -13,6 +13,10 @@
 #   • .claude/workflows/factory.js is installed, overwritten on re-run;
 #   • .claude/scripts/{factory-ready,gh-issue-dep,tdd-order-check}.sh are
 #     installed and left executable;
+#   • docs/factory-protocol.md lands in .claude/docs/, overwritten on re-run —
+#     the managed CLAUDE.md block and the skill both name it as the normative
+#     contract ("where this playbook and the protocol disagree, the protocol
+#     wins"), so without this copy that tiebreak resolves to nothing (#30);
 #   • CLAUDE.md gets the `<!-- BEGIN BENCH v:2 hash:XXXX -->` block, hash from
 #     the canonical bench-hash.sh, refreshed in place on a stale re-run, and
 #     left alone with a BEGIN-but-no-END marker;
@@ -69,6 +73,24 @@ run_install() { run bash "$SCRIPT" --project-dir "$PROJ" "$@"; }
     [ -x "$PROJ/.claude/scripts/$s" ]
     diff -q "$PROJ/.claude/scripts/$s" "$PLUGIN_ROOT/scripts/$s"
   done
+}
+
+@test "fresh project: installs the factory protocol doc" {
+  run_install
+  [ "$status" -eq 0 ]
+  [ -f "$PROJ/.claude/docs/factory-protocol.md" ]
+  diff -q "$PROJ/.claude/docs/factory-protocol.md" \
+    "$PLUGIN_ROOT/docs/factory-protocol.md"
+}
+
+@test "re-run: the protocol doc is overwritten (plugin-owned)" {
+  run_install
+  [ "$status" -eq 0 ]
+  echo "stale protocol" > "$PROJ/.claude/docs/factory-protocol.md"
+  run_install
+  [ "$status" -eq 0 ]
+  diff -q "$PROJ/.claude/docs/factory-protocol.md" \
+    "$PLUGIN_ROOT/docs/factory-protocol.md"
 }
 
 @test "re-run: skill and scripts overwritten" {
