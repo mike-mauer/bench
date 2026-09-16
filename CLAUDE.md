@@ -30,7 +30,7 @@ This repo is a Claude Code plugin **marketplace** serving a single plugin: `.cla
 - **Hook scripts are best-effort:** every code path exits 0 — a hook must never block a session. They use `set -uo pipefail` (never `-e`) and log through a `log()` helper that prefixes each line (e.g. `[claudemd-drift-check] …`).
 - **Managed CLAUDE.md block:** the orchestrator block shipped in `templates/CLAUDE.bench.md` is versioned by an 8-char content hash (`<!-- BEGIN BENCH v:N hash:XXXX -->`, computed by `scripts/bench-hash.sh`) and managed by `/bench:init`; the drift-check hook warns when a project's copy goes stale.
 
-<!-- BEGIN BENCH v:2 hash:12140a09 -->
+<!-- BEGIN BENCH v:2 hash:a5415631 -->
 ## Bench harness — operating rules
 
 This project uses **Bench**, a multi-agent software factory built on GitHub Issues. These
@@ -106,7 +106,7 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
 - Handoffs are issue comments headed `## Handoff from <role>` — the heading is the
   attribution; every role posts its own before it terminates.
 - Ready = open ∧ `bench:ready` ∧ no `bench:in-progress` ∧ no `needs-human` ∧ not
-  `type:epic` ∧ every blocker closed. `scripts/factory-ready.sh` computes it. Epics are
+  `type:epic` ∧ every blocker closed. `.claude/scripts/factory-ready.sh` computes it. Epics are
   never dispatched to a builder directly — split them into sub-issues first.
 
 ### Git Workflow

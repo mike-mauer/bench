@@ -102,7 +102,7 @@ failing-test-first loop is your primary safety net:
 1. **RED** — write a test that pins the intended behavior and fails: the exact query shape
    generated, a score threshold, a validator accept/reject decision, a transform result.
    **Commit it alone, before any implementation, with subject `test(#<n>): <what it
-   pins>`.** `scripts/tdd-order-check.sh` enforces the ordering in CI.
+   pins>`.** `.claude/scripts/tdd-order-check.sh` enforces the ordering in CI.
 2. **GREEN** — minimum query/engine change to pass, subject `feat(#<n>): …` or
    `fix(#<n>): …`.
 3. **REFACTOR** — tidy with the suite green.

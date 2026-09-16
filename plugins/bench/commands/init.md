@@ -44,10 +44,10 @@ delimited so it can be refreshed idempotently on future runs.
 Cloud sessions never load marketplace plugins — they only see what's committed in the repo.
 So the project-owned copies under `.claude/` are what actually runs there; the plugin copies
 are the source of truth `/bench:doctor` diffs against. This applies just as much to the
-orchestrator skill and the scripts role prompts and CI shell out to: a role prompt or CI job
-that says `scripts/tdd-order-check.sh` means a path inside **this project**, not the plugin —
-if it's never copied in, that path doesn't exist wherever the plugin itself isn't loaded
-(any cloud session, and any GitHub Actions runner, which never has the plugin at all).
+orchestrator skill and the scripts role prompts and CI shell out to: every such reference is
+written `.claude/scripts/…`, a path inside **this project**, not the plugin — if it's never
+copied in, that path doesn't exist wherever the plugin itself isn't loaded (any cloud
+session, and any GitHub Actions runner, which never has the plugin at all).
 
 1. `mkdir -p .claude/agents .claude/workflows .claude/skills/bench-orchestrator .claude/scripts .claude/docs`.
 2. Copy every `${CLAUDE_PLUGIN_ROOT}/agents/*.md` → `.claude/agents/` (`planner`, `engineer`,

@@ -73,7 +73,7 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
 - Handoffs are issue comments headed `## Handoff from <role>` — the heading is the
   attribution; every role posts its own before it terminates.
 - Ready = open ∧ `bench:ready` ∧ no `bench:in-progress` ∧ no `needs-human` ∧ not
-  `type:epic` ∧ every blocker closed. `scripts/factory-ready.sh` computes it. Epics are
+  `type:epic` ∧ every blocker closed. `.claude/scripts/factory-ready.sh` computes it. Epics are
   never dispatched to a builder directly — split them into sub-issues first.
 
 ### Git Workflow

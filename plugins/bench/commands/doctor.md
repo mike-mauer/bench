@@ -55,7 +55,7 @@ files. Normative spec: `${CLAUDE_PLUGIN_ROOT}/docs/factory-protocol.md`.
    `/bench:init` (Step 4) — or note it may be intentional if the project relies only on the
    sweep lane or manual dispatch.
 9. **TDD-order check in CI.** Search `.github/workflows/*.yml` for a step invoking
-   `scripts/tdd-order-check.sh`. Absent → **WARN**, "TDD commit order isn't enforced in CI."
+   `.claude/scripts/tdd-order-check.sh`. Absent → **WARN**, "TDD commit order isn't enforced in CI."
    Fix: `/bench:init` (Step 5), or add the snippet by hand.
 10. **Open `human:todo` issues for you** (protocol §15). Resolve the current user the same way
     `/bench:todo` does (`gh api user --jq .login`, else `get_me`), then `gh issue list --label

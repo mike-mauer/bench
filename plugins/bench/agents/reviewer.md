@@ -172,7 +172,7 @@ issue (`gh issue view <n> --comments`), plus one (first FAIL = ROUND 1).
    it?
 7. **TDD discipline** — verify from **commit history**: a `test(#<n>): …` commit predates
    the `feat|fix(#<n>): …` commit and **asserts the missing behavior**
-   (`git show <red-sha>` — test-only). `scripts/tdd-order-check.sh` already gated the
+   (`git show <red-sha>` — test-only). `.claude/scripts/tdd-order-check.sh` already gated the
    ordering in CI; you're the human-grade check that the red test actually pins the right
    behavior, not just that a test commit exists. A squashed test+impl, or a test that
    doesn't pin the behavior, is a finding.

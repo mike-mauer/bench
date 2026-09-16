@@ -16,8 +16,8 @@
 # exactly the environment this script targets; (3) copy workflows/factory.js into
 # .claude/workflows/; (4) copy scripts/{factory-ready.sh,gh-issue-dep.sh,
 # tdd-order-check.sh} into .claude/scripts/ (chmod +x) — the sweep lane, planner
-# dependency edges, and the TDD-order CI check all resolve `scripts/...` to this
-# project-owned copy, not the plugin's; (5) inject/refresh the managed CLAUDE.md
+# dependency edges, and the TDD-order CI check all name `.claude/scripts/...`
+# explicitly — this project-owned copy, not the plugin's; (5) inject/refresh the managed CLAUDE.md
 # block (marker `<!-- BEGIN BENCH v:2 hash:XXXX -->`, hash from the canonical
 # scripts/bench-hash.sh so /bench:doctor and the drift-check hook agree);
 # (6) --dispatch action|routine copies that dispatch template into
@@ -184,8 +184,8 @@ else
   warn "workflow: could not fetch/write workflows/factory.js"
 fi
 
-# Step 4 — the scripts role prompts, the sweep lane, and CI reference by bare
-# `scripts/...` path. Same overwrite-on-rerun, warn-on-failure treatment as the
+# Step 4 — the scripts role prompts, the sweep lane, and CI reference by explicit
+# `.claude/scripts/...` path. Same overwrite-on-rerun, warn-on-failure treatment as the
 # workflow (not hard-required to install at all — a project can still dispatch
 # roles by hand — but every fresh copy should be current and executable).
 for s in $BUILTIN_SCRIPTS; do

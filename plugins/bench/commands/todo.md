@@ -64,7 +64,7 @@ new one, so it doesn't apply here.)
 
 Read pipeline issue `#n`'s current body, add `- #<todo>` under its `## Blocked by` section
 (create the section if absent), and write the body back. Where the GitHub dependency API is
-reachable, also set a native `blocked by` edge (`scripts/gh-issue-dep.sh block <n> <todo>` if
+reachable, also set a native `blocked by` edge (`.claude/scripts/gh-issue-dep.sh block <n> <todo>` if
 present in this project, else `gh api` directly). Don't label `#n` `needs-human` — that label
 is reserved for a gate escalation (§8); dropping out of §5 readiness is the unblock here.
 

@@ -33,6 +33,12 @@ v1: nothing errors, dispatch just silently stops finding work. See **Migration**
   workflow, file and skill names keep the `factory` term — only the label vocabulary moved.
 - `/bench:init` gains a step (Step 2.6) and `.claude/docs` in its `mkdir`; the old Steps 2.6
   and 2.7 shift to 2.7 and 2.8, and their cross-references move with them.
+- Every reference to a helper script now names `.claude/scripts/…` explicitly. 17 of them
+  were written as a bare `scripts/…`, which resolves nowhere: there is no root-level
+  `scripts/` in a project, and both installers put the copies in `.claude/scripts/`. The
+  ambiguity had been papered over in prose (`/bench:init`'s "means a path inside **this
+  project**") and mis-stated in `cloud-install.sh`'s header, which claimed the bare form
+  "resolves to this project-owned copy." Both corrected.
 
 **Migration:**
 - Rename the three labels **in place**, which carries their existing issue associations —

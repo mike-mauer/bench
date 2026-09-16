@@ -54,7 +54,7 @@ issue, and they post the same handoff comments.
 
 ## The dispatch loop (per issue, manual mode)
 
-1. **Pick ready work.** `scripts/factory-ready.sh`, or open ∧ `bench:ready` ∧
+1. **Pick ready work.** `.claude/scripts/factory-ready.sh`, or open ∧ `bench:ready` ∧
    ¬`bench:in-progress` ∧ ¬`needs-human` ∧ ¬`type:epic` ∧ every blocker closed (§5).
 2. **Decide the route** (§9 table below) — not every issue needs every gate.
 3. **Pick the model** per Worker (§10).
@@ -182,7 +182,7 @@ never the parallel build — it is whether integration is clean. Two traps decid
 
 1. **Phase 0 — spine, serialized.** Run the foundation issue through the normal loop and **merge
    it** before fanning out. Wire the parallel issues to it with `## Blocked by` (and native
-   blocked-by edges via `scripts/gh-issue-dep.sh`).
+   blocked-by edges via `.claude/scripts/gh-issue-dep.sh`).
 2. **Phase 1 — fan out.** Dispatch the disjoint issues concurrently, each branch cut from the
    post-Phase-0 integration branch. Independent issues → several Agent calls in one turn, or one
    `factory` workflow run per issue.
@@ -235,4 +235,4 @@ the next one; on `blocked` it adds `needs-human` instead. The reviewer on `pass`
 ## Reading list at session start
 
 This playbook · `.claude/docs/factory-protocol.md` · `CLAUDE.md` (conventions, services) · the role
-agent defs in `.claude/agents/` · the ready queue (`scripts/factory-ready.sh`).
+agent defs in `.claude/agents/` · the ready queue (`.claude/scripts/factory-ready.sh`).

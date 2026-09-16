@@ -91,7 +91,7 @@ a failing test pass.
 3. **REFACTOR** — clean up implementation and test with the suite green; behavior must not
    change. Re-run to confirm still green.
 
-This is **machine-checked**: `scripts/tdd-order-check.sh <base>..<head>` fails the build if
+This is **machine-checked**: `.claude/scripts/tdd-order-check.sh <base>..<head>` fails the build if
 any commit in the range touches production code without an earlier test-only commit, and CI
 runs it on every PR. A test that passes the moment you write it (before any implementation)
 is not a red test — strengthen it until it fails without your change; the reviewer also
@@ -124,7 +124,7 @@ verifies this from history.
 - Branch: `factory/<issue-number>-<short-slug>`, cut from the integration branch (`main`
   unless `CLAUDE.md` says otherwise).
 - **TDD from history is mandatory and machine-checked** — see above; CI enforces it with
-  `scripts/tdd-order-check.sh`.
+  `.claude/scripts/tdd-order-check.sh`.
 - Open a **draft** PR targeting the integration branch. Body must contain `Closes #<n>` plus
   this handoff's What changed / How to verify / Commands / TDD evidence / Edge cases.
 - **Never push to the integration branch. Never merge your own PR.**
