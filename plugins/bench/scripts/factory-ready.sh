@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/factory-ready.sh — implements factory-protocol.md §5 "ready":
 #
-#   ready = open ∧ factory:ready ∧ ¬factory:in-progress ∧ ¬needs-human ∧ ¬type:epic
+#   ready = open ∧ bench:ready ∧ ¬bench:in-progress ∧ ¬needs-human ∧ ¬type:epic
 #           ∧ every issue referenced in the body's "## Blocked by" section is closed
 #           ∧ every native `blocked by` dependency (best-effort, via gh api) is closed
 #
@@ -74,16 +74,16 @@ main() {
   [ -n "$repo" ] || die "could not determine --repo; pass --repo owner/name."
 
   local listing
-  listing="$(gh issue list --repo "$repo" --label factory:ready --state open \
+  listing="$(gh issue list --repo "$repo" --label bench:ready --state open \
     --json number,body,labels --limit 500 2>/dev/null)" \
     || die "gh issue list failed for $repo"
 
-  # Drop factory:in-progress / needs-human / type:epic here; body-parsing and
+  # Drop bench:in-progress / needs-human / type:epic here; body-parsing and
   # native-dependency checks happen per-issue below.
   local candidates
   candidates="$(printf '%s' "$listing" | jq -c '
     .[] | select(
-      ([.labels[].name] | index("factory:in-progress") | not) and
+      ([.labels[].name] | index("bench:in-progress") | not) and
       ([.labels[].name] | index("needs-human") | not) and
       ([.labels[].name] | index("type:epic") | not)
     ) | {number, body: (.body // "")}

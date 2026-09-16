@@ -22,7 +22,7 @@ work happens off the books. In-session task tools are fine for scratch; they are
 
 ```bash
 gh issue create --title "<imperative, specific>" --body-file <f> \
-  --label factory:ready --label priority:p2
+  --label bench:ready --label priority:p2
 ```
 
 The body follows the §4 template (Source · Acceptance criteria as a red-test list · Out of
@@ -54,18 +54,18 @@ issue, and they post the same handoff comments.
 
 ## The dispatch loop (per issue, manual mode)
 
-1. **Pick ready work.** `scripts/factory-ready.sh`, or open ∧ `factory:ready` ∧
-   ¬`factory:in-progress` ∧ ¬`needs-human` ∧ ¬`type:epic` ∧ every blocker closed (§5).
+1. **Pick ready work.** `scripts/factory-ready.sh`, or open ∧ `bench:ready` ∧
+   ¬`bench:in-progress` ∧ ¬`needs-human` ∧ ¬`type:epic` ∧ every blocker closed (§5).
 2. **Decide the route** (§9 table below) — not every issue needs every gate.
 3. **Pick the model** per Worker (§10).
-4. **Mark it owned:** add `factory:in-progress` and the builder's `gate:*` label.
+4. **Mark it owned:** add `bench:in-progress` and the builder's `gate:*` label.
 5. **Spawn the Worker** with `agentType` = the role. Its prompt carries only the issue number,
    its role, the repo, and — on a re-dispatch — the failing gate's Blocking findings. Everything
    else it reads off the issue.
 6. **Read the return, then read the issue.** Confirm the Worker posted its own handoff comment
    and moved the gate label. The Worker writes; you verify.
 7. **Route on.** File follow-up issues for anything it flagged FYI, then dispatch the next gate.
-   On the reviewer's `pass` the issue is `factory:approved` and the PR is ready for review; the
+   On the reviewer's `pass` the issue is `bench:approved` and the PR is ready for review; the
    merge closes the issue.
 
 Workers are ephemeral and cannot see each other. **All cross-Worker communication goes through
@@ -125,7 +125,7 @@ same-gate FAIL comments on the issue.
 **Rule: read the latest FAIL handoff's `ROUND`, per gate, per issue. At `ROUND >= 2` from the
 same gate, do not dispatch a third fix.** Instead: label `needs-human`, post a one-paragraph
 escalation (what keeps failing, the gate's last Blocking finding, the builder's last position,
-your recommendation), remove `factory:in-progress`, and stop. A third identical round means the
+your recommendation), remove `bench:in-progress`, and stop. A third identical round means the
 loop has stopped converging and a human should break the tie. The workflow enforces this with
 `maxRounds`; in manual mode you enforce it.
 
@@ -216,7 +216,7 @@ report `pass|fail`, a custom role reports whichever fits its `kind`. Attribution
 not an identity flag: every comment is posted by one GitHub identity, so `## Handoff from qa` is
 what makes the chain readable. After posting, the Worker removes its own `gate:*` label and adds
 the next one; on `blocked` it adds `needs-human` instead. The reviewer on `pass` adds
-`factory:approved`, marks the PR ready for review, and removes all `gate:*` labels.
+`bench:approved`, marks the PR ready for review, and removes all `gate:*` labels.
 
 **You write only your own events** — intake issues, follow-ups, dependency edges, escalations.
 
@@ -225,7 +225,7 @@ the next one; on `blocked` it adds `needs-human` instead. The reviewer on `pass`
 1. Every substantial ask of the human discussed this session has a `human:todo` issue (§15).
 2. Every actionable item discussed has a GitHub issue.
 3. Quality gates ran on changed code (tests, lint, build).
-4. Labels reflect reality: nothing left `factory:in-progress` that no session owns; anything
+4. Labels reflect reality: nothing left `bench:in-progress` that no session owns; anything
    parked is `needs-human` with a comment saying why.
 5. **Commit locally** — small, focused commits.
 6. **Push / open PRs only with explicit authority.** Conservative is the default: report what is

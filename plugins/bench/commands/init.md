@@ -103,7 +103,7 @@ if it's never copied in, that path doesn't exist wherever the plugin itself isn'
 If `gh` is on `PATH`:
 ```bash
 for l in \
-  "factory:ready:0E8A16" "factory:in-progress:FBCA04" "factory:approved:0E8A16" \
+  "bench:ready:0E8A16" "bench:in-progress:FBCA04" "bench:approved:0E8A16" \
   "needs-human:B60205" \
   "gate:engineer:1D76DB" "gate:qa:1D76DB" "gate:reviewer:1D76DB" \
   "type:epic:5319E7" "lane:ui:C5DEF5" "lane:data:C5DEF5" \

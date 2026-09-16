@@ -2,7 +2,7 @@
 #
 # Installed by `/bench:init --dispatch action` as .github/workflows/factory-dispatch.yml.
 # Fires the factory pipeline when a human, the planner, or the Sentry lane labels an issue
-# `factory:ready` (docs/factory-protocol.md §12, "Issue lane"). Runs on a GitHub Actions
+# `bench:ready` (docs/factory-protocol.md §12, "Issue lane"). Runs on a GitHub Actions
 # runner — token-billed, generally available. Needs one repo secret: ANTHROPIC_API_KEY
 # (Settings → Secrets and variables → Actions → New repository secret).
 
@@ -12,7 +12,7 @@ on:
   issues:
     types: [labeled]
 
-# One in-flight dispatch per issue: a second `factory:ready` labeling event for the same
+# One in-flight dispatch per issue: a second `bench:ready` labeling event for the same
 # issue (e.g. a re-label after a manual fix) cancels any still-running job instead of
 # racing it, since both would try to move the same gate label.
 concurrency:
@@ -23,7 +23,7 @@ jobs:
   dispatch:
     # `issues: [labeled]` fires on every label added to the repo. This gate keeps the job a
     # no-op except on the one label that actually means "ready to run".
-    if: github.event.label.name == 'factory:ready'
+    if: github.event.label.name == 'bench:ready'
     runs-on: ubuntu-latest
     permissions:
       contents: write        # the builder commits to a feature branch and opens a PR

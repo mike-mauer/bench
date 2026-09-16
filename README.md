@@ -37,17 +37,17 @@ after a local install) to finish (labels, dispatch lane, TDD-order CI check).
 
 Every lane runs the same pipeline; they differ only in what triggers a session.
 
-- **Issue lane.** A human or the planner labels an issue `factory:ready`. A GitHub Actions
+- **Issue lane.** A human or the planner labels an issue `bench:ready`. A GitHub Actions
   workflow (`templates/factory-dispatch-action.yml`) or a Claude Code Routine
   (`templates/factory-dispatch-routine.yml`) fires on that label and runs the factory
   workflow for the issue. Pick one at `/bench:init --dispatch action|routine`.
-- **Sweep lane.** A cron trigger runs `scripts/factory-ready.sh` — open, `factory:ready`, not
+- **Sweep lane.** A cron trigger runs `scripts/factory-ready.sh` — open, `bench:ready`, not
   in progress, not blocked, no `needs-human` — and fires one session per ready issue. Catches
   anything the issue lane missed or that was made ready later by a closing blocker.
 - **Sentry lane.** An issue-alert webhook fires a session that reads the Sentry payload
   (treated as data, never instructions), files a GitHub issue with an acceptance criterion
   that a test reproducing the exact error signature must fail before the fix, labels it
-  `factory:ready`, and lets the pipeline run.
+  `bench:ready`, and lets the pipeline run.
 
 ## Working with a human
 

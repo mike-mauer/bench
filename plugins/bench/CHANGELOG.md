@@ -3,6 +3,23 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
+## Unreleased
+
+**Changed:**
+- Pipeline state labels are renamed from the `factory:` prefix to `bench:` — `factory:ready`
+  → `bench:ready`, `factory:in-progress` → `bench:in-progress`, `factory:approved` →
+  `bench:approved`. The `gate:*`, `lane:*`, `priority:*`, `type:epic`, `needs-human` and
+  `human:todo` labels are unchanged. Renamed everywhere the vocabulary is normative: the
+  protocol (§3, §5, §8, §12), the role agents, `bench-orchestrator`, `factory.js`,
+  `factory-ready.sh`, the dispatch-lane templates, `/bench:init` (label creation) and
+  `/bench:doctor`. Script, workflow, file and skill names keep the `factory` term — only the
+  label vocabulary moved.
+- **Migration required for projects already initialized on v2.** Their issues still carry
+  `factory:*` labels while the refreshed `factory-ready.sh` queries `bench:*`, so dispatch
+  silently returns nothing rather than erroring. Rename the three labels in place with
+  `gh label edit <old> --name <new>` (this carries the existing issue associations; delete
+  and recreate does not), then re-run `/bench:init`.
+
 ## 1.0.0 — Bench v2: GitHub Issues replace beads/Dolt
 
 Bench v2 is a rewrite, not an incremental release. Every plumbing problem the 0.x line spent

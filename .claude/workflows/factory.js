@@ -1,7 +1,7 @@
 export const meta = {
   name: 'factory',
   description: 'Run one GitHub issue through the Bench factory: triage, optional planning, build, gates, escalation.',
-  whenToUse: 'Unattended dispatch of a factory:ready GitHub issue. args: { issue: <number>, repo?: "owner/name", maxRounds?: 2 }',
+  whenToUse: 'Unattended dispatch of a bench:ready GitHub issue. args: { issue: <number>, repo?: "owner/name", maxRounds?: 2 }',
   phases: [
     { title: 'Triage', detail: 'read the issue, decide readiness, lane, risk', model: 'haiku' },
     { title: 'Plan', detail: 'epics only: file dependency-ordered sub-issues', model: 'opus' },
@@ -38,7 +38,7 @@ const GH =
   `issue immediately before every label change, take its current label list, remove/add the ` +
   `label(s) you mean to change, and send the complete resulting array. Never call issue_write ` +
   `with just the label you're adding — that replaces the whole set and silently drops ` +
-  `everything else (factory:ready, lane:*, priority:*, type:*, other gate:*).`
+  `everything else (bench:ready, lane:*, priority:*, type:*, other gate:*).`
 
 // ------------------------------------------------------------------- schemas
 
@@ -290,31 +290,31 @@ async function claim(number, builder) {
   const ack = await agent(
     `Housekeeping on GitHub issue #${number}. ${GH}\n\n` +
       `First read the issue's current labels and report them in \`detail\`. Then add the label ` +
-      `\`factory:in-progress\`. Remove every \`gate:*\` label already on the issue (the planner ` +
+      `\`bench:in-progress\`. Remove every \`gate:*\` label already on the issue (the planner ` +
       `may have preset one that doesn't match this route's builder), then add \`gate:${builder}\` ` +
       `(create it if it does not exist) — exactly one \`gate:*\` label must remain, per §3. ` +
       `Change nothing else and post no comment. Report ok.`,
     { label: `claim #${number}`, phase: 'Build', model: 'haiku', schema: ACK_SCHEMA }
   )
-  if (!ack || !ack.ok) log(`#${number}: could not set factory:in-progress / gate:${builder} — continuing`)
+  if (!ack || !ack.ok) log(`#${number}: could not set bench:in-progress / gate:${builder} — continuing`)
   return { issue: number, status: 'claimed' }
 }
 
-// §3: "Removed on finish." The last gate's pass already added factory:approved and
+// §3: "Removed on finish." The last gate's pass already added bench:approved and
 // removed gate:*; this clears the ownership label so a later hold (PR not merged
 // immediately) doesn't leave the issue permanently invisible to §5 readiness / the sweep
-// lane, and doesn't trip the orchestrator's "nothing left factory:in-progress that no
+// lane, and doesn't trip the orchestrator's "nothing left bench:in-progress that no
 // session owns" hygiene check.
 async function release(number) {
   const ack = await agent(
     `Housekeeping on GitHub issue #${number}. ${GH}\n\n` +
       `First read the issue's current labels and report them in \`detail\`. The last gate ` +
-      `passed and the reviewer's handoff already added \`factory:approved\`, removed all ` +
+      `passed and the reviewer's handoff already added \`bench:approved\`, removed all ` +
       `\`gate:*\` labels, and marked the PR ready for review. Remove the label ` +
-      `\`factory:in-progress\`. Change nothing else and post no comment. Report ok.`,
+      `\`bench:in-progress\`. Change nothing else and post no comment. Report ok.`,
     { label: `release #${number}`, phase: 'Review', model: 'haiku', schema: ACK_SCHEMA }
   )
-  if (!ack || !ack.ok) log(`#${number}: could not remove factory:in-progress — a human should check labels`)
+  if (!ack || !ack.ok) log(`#${number}: could not remove bench:in-progress — a human should check labels`)
 }
 
 // §15 wiring: a builder that reports `blocked` already files its own human:todo and
@@ -341,7 +341,7 @@ async function escalate(number, reason, detail, existingTodo) {
       `## What I need from you\n<one paragraph, plain English — the decision or action you ` +
       `owe the factory, and why: is the spec ambiguous, is a finding real but bigger than this ` +
       `issue, or is it an environment problem?>\n\n` +
-      `## Steps\n1. <concrete next action — e.g. the command to re-label \`factory:ready\` on ` +
+      `## Steps\n1. <concrete next action — e.g. the command to re-label \`bench:ready\` on ` +
       `#${number} once decided, or the file/spec to amend>\n\n` +
       `## When you're done\nClose this issue, then clear the escalation on #${number}: ` +
       `\`gh issue edit ${number} --remove-label needs-human\` (MCP path: issue_read #${number}, ` +
@@ -371,7 +371,7 @@ async function escalate(number, reason, detail, existingTodo) {
       `handoff comments, then post ONE paragraph: what keeps failing, the gate's last Blocking ` +
       `finding, the builder's last position, and your recommendation (spec ambiguous / finding ` +
       `real but bigger than this issue / environment problem). Add the label \`needs-human\`, ` +
-      `remove \`factory:in-progress\`.\n\n${todoInstruction}\n\n` +
+      `remove \`bench:in-progress\`.\n\n${todoInstruction}\n\n` +
       `Do not re-dispatch anything. Report ok and todoIssue.`,
     { label: `escalate #${number}`, phase: 'Escalate', model: 'haiku', schema: ESCALATE_SCHEMA }
   )
@@ -549,9 +549,9 @@ async function runWaves(children, t) {
             `## Steps\n1. Open #${stuckList} and read each one's \`## Blocked by\` section.\n` +
             `2. Find the cycle (or the blocker that will never close) and break it by editing ` +
             `those \`## Blocked by\` sections — drop the stale entry or reorder the real ` +
-            `dependency.\n3. Re-label the affected issues \`factory:ready\`.\n\n` +
+            `dependency.\n3. Re-label the affected issues \`bench:ready\`.\n\n` +
             `## When you're done\nClose this issue once the blockers are fixed and the affected ` +
-            `issues are re-labeled \`factory:ready\` — that's what lets the factory pick them up ` +
+            `issues are re-labeled \`bench:ready\` — that's what lets the factory pick them up ` +
             `again.\n\n## Blocks\n- #${ISSUE}\n\n` +
             `Assign it per §15's order, checking each candidate before use: (1) \`gh api user ` +
             `--jq .login\` when \`gh\` exists, else the \`get_me\` MCP tool; (2) epic #${ISSUE}'s ` +
@@ -611,7 +611,7 @@ const triage = await agent(
   `Triage GitHub issue #${ISSUE}. ${GH}\n\n` +
     `Report, without changing anything:\n` +
     `- isEpic: it carries the \`type:epic\` label.\n` +
-    `- ready: open AND labeled \`factory:ready\` AND not \`factory:in-progress\` AND not ` +
+    `- ready: open AND labeled \`bench:ready\` AND not \`bench:in-progress\` AND not ` +
     `\`needs-human\` AND every issue in its \`## Blocked by\` body section and every native ` +
     `blocked-by edge is closed.\n` +
     `- blockers: the still-open blocker issue numbers.\n` +
@@ -658,7 +658,7 @@ const plan = await agent(
     `template from your role prompt — Source, Acceptance criteria as a red-test list, Out of ` +
     `scope, Notes for the builder, and \`## Blocked by\` for real ordering or shared-file ` +
     `constraints only. File them as sub-issues of #${ISSUE}, set native blocked-by edges where ` +
-    `the API is reachable, and label each \`factory:ready\` plus its own lane and priority — ` +
+    `the API is reachable, and label each \`bench:ready\` plus its own lane and priority — ` +
     `each child may need a different lane than the epic. Return every child you filed with ` +
     `its blockedBy list (child issue numbers only) and its own lane, securitySensitive, ` +
     `docsOnly, and userObservable so the workflow can route it without re-triaging.`,

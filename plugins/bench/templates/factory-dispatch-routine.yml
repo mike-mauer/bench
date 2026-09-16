@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   dispatch:
-    if: github.event.label.name == 'factory:ready'
+    if: github.event.label.name == 'bench:ready'
     runs-on: ubuntu-latest
     permissions:
       contents: read   # this job only fires the Routine; the fired cloud session does the writing

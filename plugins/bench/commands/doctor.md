@@ -31,7 +31,7 @@ files. Normative spec: `docs/factory-protocol.md`.
    byte-identical to `${CLAUDE_PLUGIN_ROOT}/workflows/factory.js`. Missing → **FAIL**. Differs
    → **WARN**. Fix either way: `/bench:init`.
 6. **Labels exist** (protocol §3). `gh label list --limit 200` (or the GitHub MCP
-   equivalent). Check for: `factory:ready`, `factory:in-progress`, `factory:approved`,
+   equivalent). Check for: `bench:ready`, `bench:in-progress`, `bench:approved`,
    `needs-human`, `gate:engineer`, `gate:qa`, `gate:reviewer`, plus `gate:<role>` for every
    optional/custom role found in checks 3–4, `type:epic`, `lane:ui`, `lane:data`,
    `priority:p0`…`priority:p4`, `task`, `chore`, `human:todo`. Any missing → **WARN**, list

@@ -5,7 +5,7 @@ This file provides instructions and context for AI coding agents working on this
 ## Work tracking: GitHub Issues
 
 This project tracks work in GitHub Issues, not a local database. One issue = one unit of
-work; labels carry pipeline state (`factory:ready`, `gate:<role>`, `factory:approved`,
+work; labels carry pipeline state (`bench:ready`, `gate:<role>`, `bench:approved`,
 `needs-human`); handoffs are issue comments headed `## Handoff from <role>`. The normative
 spec is `docs/factory-protocol.md` — read it before touching the pipeline, the agent
 prompts, or the workflow script.
@@ -30,7 +30,7 @@ This repo is a Claude Code plugin **marketplace** serving a single plugin: `.cla
 - **Hook scripts are best-effort:** every code path exits 0 — a hook must never block a session. They use `set -uo pipefail` (never `-e`) and log through a `log()` helper that prefixes each line (e.g. `[claudemd-drift-check] …`).
 - **Managed CLAUDE.md block:** the orchestrator block shipped in `templates/CLAUDE.bench.md` is versioned by an 8-char content hash (`<!-- BEGIN BENCH v:N hash:XXXX -->`, computed by `scripts/bench-hash.sh`) and managed by `/bench:init`; the drift-check hook warns when a project's copy goes stale.
 
-<!-- BEGIN BENCH v:2 hash:0e187796 -->
+<!-- BEGIN BENCH v:2 hash:c7d54c90 -->
 ## Bench harness — operating rules
 
 This project uses **Bench**, a multi-agent software factory built on GitHub Issues. These
@@ -44,7 +44,7 @@ multiple roles, or spawning any Worker.
   comments, only runtime facts in a Worker's prompt.
 - Exactly one `gate:*` label at a time; the role handing off moves it.
 - Builders never push to the integration branch and never merge.
-- Only the `reviewer` marks an issue `factory:approved`; the PR merge closes it.
+- Only the `reviewer` marks an issue `bench:approved`; the PR merge closes it.
 - Hand-dispatched Workers share this session's working tree — spawn any builder, or any
   gate that checks out a branch, with `isolation: worktree`. Never `checkout`/`switch` in
   the shared tree. (The `factory` workflow's own Agent-tool calls already set this; it only
@@ -100,12 +100,12 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
   built-in task tools are fine for in-session scratch but are **not** the record.
 - Read with `gh issue view <n> --comments` (or the GitHub MCP `issue_read`); a Worker
   starts from the issue and its comments alone — nothing gets re-pasted into prompts.
-- Labels carry the state: `factory:ready` (dispatchable), `factory:in-progress` (owned),
-  `gate:<role>` (current gate), `factory:approved` (reviewer passed), `needs-human`
+- Labels carry the state: `bench:ready` (dispatchable), `bench:in-progress` (owned),
+  `gate:<role>` (current gate), `bench:approved` (reviewer passed), `needs-human`
   (escalated), plus `lane:*`, `priority:p0`–`p4`, `type:epic`.
 - Handoffs are issue comments headed `## Handoff from <role>` — the heading is the
   attribution; every role posts its own before it terminates.
-- Ready = open ∧ `factory:ready` ∧ no `factory:in-progress` ∧ no `needs-human` ∧ not
+- Ready = open ∧ `bench:ready` ∧ no `bench:in-progress` ∧ no `needs-human` ∧ not
   `type:epic` ∧ every blocker closed. `scripts/factory-ready.sh` computes it. Epics are
   never dispatched to a builder directly — split them into sub-issues first.
 
@@ -124,7 +124,7 @@ When ending a work session:
 1. File `human:todo` issues for every substantial ask of the human discussed this session.
 2. File issues for remaining work.
 3. Run quality gates on changed code (tests, lint, build).
-4. Update labels to reflect reality; nothing left `factory:in-progress` that no session
+4. Update labels to reflect reality; nothing left `bench:in-progress` that no session
    owns, anything parked is `needs-human` with a comment saying why.
 5. **Commit locally** — leave changed work in small, focused commits (see Git Workflow).
 6. **Push / open PRs only with explicit authority.** Conservative is the default: report
