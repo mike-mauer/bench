@@ -63,6 +63,18 @@ v1: nothing errors, dispatch just silently stops finding work. See **Migration**
   surface. "Software factory" also stays in the prose: it is Bench's one-line definition, not
   redundancy.
 
+- **`reviewer`, `data-eng` and `design-reviewer` are granted the GitHub MCP tools their own
+  prompts require** (#32). All three had only `Read, Bash, Grep, Glob`, so they worked solely
+  by shelling out to `gh` — and were hard-blocked wherever `gh` isn't installed, which is
+  exactly the container `cloud-install.sh` targets. `engineer`, `planner` and `qa` already
+  had the fallback. `data-eng` is a builder, so it gets the builder set including
+  `create_pull_request`; the two gates get the gate set.
+
+  The shared "GitHub access" paragraph was boilerplate copied into every role, so the three
+  gates (`qa` too) advertised builder-only tools — `gh pr create --draft`,
+  `create_pull_request`, `sub_issue_write` — that they are not granted and should not use.
+  Gates now carry a gate-shaped version. New `tests/agent_tools.bats` pins all of it.
+
   Existing installs pick the new names up on the next `/bench:init` or `cloud-install.sh`.
   An old `.github/workflows/factory-dispatch.yml` is **not** removed by either installer —
   delete it by hand after the new `bench-dispatch.yml` lands, or the issue-labeled event

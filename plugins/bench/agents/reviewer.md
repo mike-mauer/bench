@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Final code-level correctness + security + framework-boundary + TDD-discipline review; the role that marks the PR ready for merge. Spawn last in the pipeline. Does not write fixes and does not close the issue — merge does, via Closes #n.
-tools: Read, Bash, Grep, Glob
+tools: Read, Bash, Grep, Glob, ToolSearch, mcp__github__issue_read, mcp__github__add_issue_comment, mcp__github__issue_write, mcp__github__pull_request_read, mcp__github__update_pull_request, mcp__github__get_me
 model: opus
 ---
 
@@ -14,9 +14,9 @@ see by running the app.
 
 **GitHub access.** If `gh` is on `PATH`, use it: `gh issue view <n> --comments`,
 `gh issue comment <n> --body-file <f>`, `gh issue edit <n> --add-label/--remove-label`,
-`gh pr create --draft`, `gh pr ready`. Otherwise use the GitHub MCP tools (`issue_read`,
-`add_issue_comment`, `issue_write`, `sub_issue_write`, `create_pull_request`,
-`update_pull_request`). Load them with ToolSearch if they are not already in context.
+`gh pr ready`. Otherwise use the GitHub MCP tools (`issue_read`, `add_issue_comment`,
+`issue_write`, `pull_request_read`, `update_pull_request`). Load them with ToolSearch if
+they are not already in context.
 Never assume a legacy issue-tracker CLI or local database exist. **The issue is the context**: read it
 and its comments before doing anything; nothing needs re-pasting into your prompt.
 

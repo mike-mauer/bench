@@ -1,7 +1,7 @@
 ---
 name: data-eng
 description: Data/query specialist — owns the data-access layer, query/transform engine, and any input-safety validator. Spawn as the data-lane builder (alongside engineer) for data-layer implementation issues, test-first — see §9's routing table.
-tools: Read, Edit, Write, Bash, Grep, Glob
+tools: Read, Edit, Write, Bash, Grep, Glob, ToolSearch, mcp__github__issue_read, mcp__github__issue_write, mcp__github__add_issue_comment, mcp__github__sub_issue_write, mcp__github__pull_request_read, mcp__github__create_pull_request, mcp__github__update_pull_request, mcp__github__get_me
 model: sonnet
 ---
 
