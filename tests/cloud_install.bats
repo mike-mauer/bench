@@ -11,8 +11,10 @@
 #     re-run — the managed CLAUDE.md block requires it, so it fails the
 #     install like a missing agent when it can't be written;
 #   • .claude/workflows/factory.js is installed, overwritten on re-run;
-#   • .claude/scripts/{factory-ready,gh-issue-dep,tdd-order-check}.sh are
-#     installed and left executable;
+#   • .claude/scripts/{factory-ready,gh-issue-dep,tdd-order-check,human-todos}.sh
+#     are installed and left executable — human-todos.sh because the protocol
+#     this script now ships cites `.claude/scripts/human-todos.sh` by that exact
+#     path as §15's reminder surface, and /bench:init already installs it;
 #   • plugins/bench/docs/factory-protocol.md lands in .claude/docs/, overwritten on re-run —
 #     the managed CLAUDE.md block and the skill both name it as the normative
 #     contract ("where this playbook and the protocol disagree, the protocol
@@ -73,6 +75,13 @@ run_install() { run bash "$SCRIPT" --project-dir "$PROJ" "$@"; }
     [ -x "$PROJ/.claude/scripts/$s" ]
     diff -q "$PROJ/.claude/scripts/$s" "$PLUGIN_ROOT/scripts/$s"
   done
+}
+
+@test "fresh project: installs human-todos.sh, the protocol's §15 reminder surface" {
+  run_install
+  [ "$status" -eq 0 ]
+  [ -f "$PROJ/.claude/scripts/human-todos.sh" ]
+  [ -x "$PROJ/.claude/scripts/human-todos.sh" ]
 }
 
 @test "fresh project: installs the factory protocol doc" {
