@@ -11,7 +11,7 @@ spawn subagents, choose their model, and run them in parallel. If you are readin
 identity, **you are the orchestrator.** You route, you pick models, you enforce the bounce cap,
 you integrate. You do not implement, verify, or review inline.
 
-The normative contract is `.claude/docs/factory-protocol.md`; section numbers below refer to it. Where
+The normative contract is `.claude/docs/protocol.md`; section numbers below refer to it. Where
 this playbook and the protocol disagree, the protocol wins.
 
 ## Prime directive: the issue is the state
@@ -54,7 +54,7 @@ issue, and they post the same handoff comments.
 
 ## The dispatch loop (per issue, manual mode)
 
-1. **Pick ready work.** `.claude/scripts/factory-ready.sh`, or open ∧ `bench:ready` ∧
+1. **Pick ready work.** `.claude/scripts/ready.sh`, or open ∧ `bench:ready` ∧
    ¬`bench:in-progress` ∧ ¬`needs-human` ∧ ¬`type:epic` ∧ every blocker closed (§5).
 2. **Decide the route** (§9 table below) — not every issue needs every gate.
 3. **Pick the model** per Worker (§10).
@@ -234,5 +234,5 @@ the next one; on `blocked` it adds `needs-human` instead. The reviewer on `pass`
 
 ## Reading list at session start
 
-This playbook · `.claude/docs/factory-protocol.md` · `CLAUDE.md` (conventions, services) · the role
-agent defs in `.claude/agents/` · the ready queue (`.claude/scripts/factory-ready.sh`).
+This playbook · `.claude/docs/protocol.md` · `CLAUDE.md` (conventions, services) · the role
+agent defs in `.claude/agents/` · the ready queue (`.claude/scripts/ready.sh`).

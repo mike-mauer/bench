@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/human-todos.sh — SessionStart hook: surface the current user's open
-# `human:todo` issues (.claude/docs/factory-protocol.md §15) so a new session starts
+# `human:todo` issues (.claude/docs/protocol.md §15) so a new session starts
 # with the outstanding asks in view instead of them being forgotten in a
 # closed chat transcript.
 #
@@ -44,7 +44,7 @@ listing="$(RUN gh issue list "${REPO_ARGS[@]+"${REPO_ARGS[@]}"}" --label human:t
 
 # parse_blocks <body> — print the first `- #<n>` line under a `## Blocks`
 # heading, or nothing if there's no such section/ref. Mirrors
-# factory-ready.sh's parse_blocked_by: only the named section counts, and it
+# ready.sh's parse_blocked_by: only the named section counts, and it
 # stops at the next heading.
 parse_blocks() {
   local body="$1"

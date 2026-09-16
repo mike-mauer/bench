@@ -113,7 +113,7 @@ dependency API is reachable (any environment with `gh`), the planner *also* sets
   always.
 - **Ready** = open ∧ `bench:ready` ∧ ¬`bench:in-progress` ∧ ¬`needs-human` ∧ ¬`type:epic`
   ∧ every issue referenced in `## Blocked by` (and every native blocker) is closed.
-  `.claude/scripts/factory-ready.sh` implements this with `gh`; the `factory` workflow's triage stage
+  `.claude/scripts/ready.sh` implements this with `gh`; the `factory` workflow's triage stage
   implements it with whichever surface it has.
 
 ---
@@ -229,13 +229,13 @@ object or `null` if the agent died — always handle `null`.
 
 ## 12. Triggers
 
-- **Issue lane:** `templates/factory-dispatch-action.yml` — a GitHub Actions workflow on
+- **Issue lane:** `templates/bench-dispatch-action.yml` — a GitHub Actions workflow on
   `issues: [labeled]` with `bench:ready` that runs `anthropics/claude-code-action@v1` in
   automation mode with a prompt: "Run the factory workflow (`.claude/workflows/factory.js`)
-  for issue #${{ github.event.issue.number }}." `templates/factory-dispatch-routine.yml` is
+  for issue #${{ github.event.issue.number }}." `templates/bench-dispatch-routine.yml` is
   the alternative that `curl`s a Claude Code Routine's `/fire` endpoint with the issue number
   in `text`, so execution runs in a Claude Code cloud session instead of the Actions runner.
-- **Sweep lane:** a cron Routine (or Action) that runs `.claude/scripts/factory-ready.sh` and fires one
+- **Sweep lane:** a cron Routine (or Action) that runs `.claude/scripts/ready.sh` and fires one
   session per ready issue.
 - **Sentry lane:** an issue-alert webhook → Routine `/fire`; the session files a GitHub issue
   from the Sentry payload (acceptance criterion: "a test reproducing this exact error
@@ -270,10 +270,10 @@ plugins/bench/
 ├── commands/          init · doctor · new-agent · todo
 ├── hooks/hooks.json   SessionStart: claudemd-drift-check · human-todos (best-effort)
 ├── scripts/           bench-hash.sh · claudemd-drift-check.sh · tdd-order-check.sh
-│                      gh-issue-dep.sh · factory-ready.sh · migrate-beads-to-issues.py
+│                      gh-issue-dep.sh · ready.sh · migrate-beads-to-issues.py
 │                      cloud-install.sh (copies agents + workflow + block into a repo)
 └── templates/         CLAUDE.bench.md · custom-agent.md
-                       factory-dispatch-action.yml · factory-dispatch-routine.yml
+                       bench-dispatch-action.yml · bench-dispatch-routine.yml
 ```
 
 `/bench:init` **copies** `agents/`, `workflows/factory.js` and the chosen dispatch template into

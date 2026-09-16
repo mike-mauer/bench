@@ -9,7 +9,7 @@ argument-hint: "[--with data-eng,design-reviewer] [--dispatch action|routine|non
 You are setting up Bench in the current project. A plugin cannot edit a project's
 `CLAUDE.md`, write into `.claude/`, or create GitHub labels on its own — that is what this
 command does. Work through the steps below, reporting what you changed. Normative spec:
-`${CLAUDE_PLUGIN_ROOT}/docs/factory-protocol.md` — follow it exactly if anything below is ambiguous.
+`${CLAUDE_PLUGIN_ROOT}/docs/protocol.md` — follow it exactly if anything below is ambiguous.
 
 Arguments (from `$ARGUMENTS`):
 - `--with <roles>` — comma-separated optional roles to install: `data-eng`, `design-reviewer`.
@@ -21,7 +21,7 @@ agents at `${CLAUDE_PLUGIN_ROOT}/agents-optional/`, the orchestrator skill at
 `${CLAUDE_PLUGIN_ROOT}/skills/bench-orchestrator/SKILL.md`, the workflow at
 `${CLAUDE_PLUGIN_ROOT}/workflows/factory.js`, the scripts roles and CI depend on at
 `${CLAUDE_PLUGIN_ROOT}/scripts/`, dispatch templates at
-`${CLAUDE_PLUGIN_ROOT}/templates/factory-dispatch-*.yml`.
+`${CLAUDE_PLUGIN_ROOT}/templates/bench-dispatch-*.yml`.
 
 ## Step 1 — Inject the orchestrator rules into CLAUDE.md (versioned marker block)
 Same mechanism as v1, one version bump (`v:2` — GitHub Issues replace the v1 tracker). The block is
@@ -64,15 +64,15 @@ session, and any GitHub Actions runner, which never has the plugin at all).
    load the marketplace plugin.
 5. Copy `${CLAUDE_PLUGIN_ROOT}/workflows/factory.js` → `.claude/workflows/factory.js`
    (overwrite — plugin-owned).
-6. Copy `${CLAUDE_PLUGIN_ROOT}/docs/factory-protocol.md` → `.claude/docs/factory-protocol.md`
+6. Copy `${CLAUDE_PLUGIN_ROOT}/docs/protocol.md` → `.claude/docs/protocol.md`
    (overwrite — plugin-owned). This is the normative contract: the managed CLAUDE.md block
    Step 5 injects and the skill copied in Step 2.4 both cite it by section, and the skill
    makes it the tiebreak — "where this playbook and the protocol disagree, the protocol
    wins." Without this copy the protocol is unreachable in the project and that tiebreak
-   resolves to nothing (#30). Cite it as `.claude/docs/factory-protocol.md` in anything you
+   resolves to nothing (#30). Cite it as `.claude/docs/protocol.md` in anything you
    write into the project.
 7. Copy
-   `${CLAUDE_PLUGIN_ROOT}/scripts/{factory-ready.sh,gh-issue-dep.sh,tdd-order-check.sh,human-todos.sh}`
+   `${CLAUDE_PLUGIN_ROOT}/scripts/{ready.sh,gh-issue-dep.sh,tdd-order-check.sh,human-todos.sh}`
    → `.claude/scripts/` (overwrite — plugin-owned), then `chmod +x` each. The first three are
    the scripts referenced by bare `scripts/…` path elsewhere in the role prompts and the skill
    (planner's dependency edges, the sweep lane, the engineer/reviewer TDD-order check) and by
@@ -136,22 +136,22 @@ Actions runner, token-billed, generally available), **routine** (runs in a Claud
 session, subscription-billed, research preview), or **none** (skip — dispatch stays manual or
 sweep-only).
 
-- `action` → copy `${CLAUDE_PLUGIN_ROOT}/templates/factory-dispatch-action.yml` to
-  `.github/workflows/factory-dispatch.yml`. Tell the user it needs one repo secret:
+- `action` → copy `${CLAUDE_PLUGIN_ROOT}/templates/bench-dispatch-action.yml` to
+  `.github/workflows/bench-dispatch.yml`. Tell the user it needs one repo secret:
   `ANTHROPIC_API_KEY` (repo Settings → Secrets and variables → Actions → New repository
   secret).
-- `routine` → copy `${CLAUDE_PLUGIN_ROOT}/templates/factory-dispatch-routine.yml` to
-  `.github/workflows/factory-dispatch.yml`. Tell the user it needs the same
+- `routine` → copy `${CLAUDE_PLUGIN_ROOT}/templates/bench-dispatch-routine.yml` to
+  `.github/workflows/bench-dispatch.yml`. Tell the user it needs the same
   `ANTHROPIC_API_KEY` secret, **plus** a repo variable `BENCH_ROUTINE_ID` naming a Routine
   created ahead of time (e.g. `create_trigger` with `create_new_session_on_fire: true` and a
   prompt like "Run the factory workflow for the issue named in this message" — its returned
   `trig_...` id is the variable value), and that Routines are a **research preview**: the
   `/fire` endpoint and its `anthropic-beta` header may change.
 - `none` → install nothing here. Remind the user that issues still get worked via the sweep
-  lane (a cron Routine or Action running `.claude/scripts/factory-ready.sh`) or by dispatching
+  lane (a cron Routine or Action running `.claude/scripts/ready.sh`) or by dispatching
   the workflow or roles by hand.
 
-If `.github/workflows/factory-dispatch.yml` already exists and differs from the template
+If `.github/workflows/bench-dispatch.yml` already exists and differs from the template
 being installed, show the diff and ask before overwriting — it may be a deliberate
 customization.
 

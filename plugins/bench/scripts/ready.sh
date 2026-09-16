@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/factory-ready.sh — implements .claude/docs/factory-protocol.md §5 "ready":
+# scripts/ready.sh — implements .claude/docs/protocol.md §5 "ready":
 #
 #   ready = open ∧ bench:ready ∧ ¬bench:in-progress ∧ ¬needs-human ∧ ¬type:epic
 #           ∧ every issue referenced in the body's "## Blocked by" section is closed
@@ -8,19 +8,19 @@
 # Prints one issue number per line (default) or a JSON array (--json).
 #
 # `parse_blocked_by` (the body-parsing function) has no network dependency and
-# is unit-tested by sourcing this file — see tests/factory_ready.bats. The
-# BASH_SOURCE guard below means `source factory-ready.sh` defines the
+# is unit-tested by sourcing this file — see tests/ready.bats. The
+# BASH_SOURCE guard below means `source ready.sh` defines the
 # functions without running main or requiring gh.
 set -uo pipefail
 
-die() { printf 'factory-ready: %s\n' "$*" >&2; exit 1; }
+die() { printf 'ready: %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'USAGE'
-factory-ready.sh — list issues ready for dispatch (.claude/docs/factory-protocol.md §5).
+ready.sh — list issues ready for dispatch (.claude/docs/protocol.md §5).
 
 Usage:
-  factory-ready.sh [--repo owner/name] [--json]
+  ready.sh [--repo owner/name] [--json]
 
 Prints one ready issue number per line, or a JSON array with --json.
 USAGE

@@ -7,7 +7,7 @@ description: Read-only health check of the Bench v2 install in this project — 
 
 Run a **read-only** diagnostic of the Bench install in the current project and print one
 table: `Check | Status | Fix`, where Status is `PASS` / `WARN` / `FAIL`. Do not modify any
-files. Normative spec: `${CLAUDE_PLUGIN_ROOT}/docs/factory-protocol.md`.
+files. Normative spec: `${CLAUDE_PLUGIN_ROOT}/docs/protocol.md`.
 
 1. **GitHub reachability.** If `gh` is on `PATH`, run `gh auth status`. Otherwise confirm the
    GitHub MCP tools are reachable — `ToolSearch` for `get_me`/`issue_read` if not already in
@@ -44,9 +44,9 @@ files. Normative spec: `${CLAUDE_PLUGIN_ROOT}/docs/factory-protocol.md`.
    ```
    Absent → **FAIL**. Present but `have != want` → **WARN**, "stale". Fix: `/bench:init`
    (Step 1).
-8. **Dispatch lane.** Check `.github/workflows/factory-dispatch.yml`. If present, report
+8. **Dispatch lane.** Check `.github/workflows/bench-dispatch.yml`. If present, report
    which template it matches (diff against both
-   `${CLAUDE_PLUGIN_ROOT}/templates/factory-dispatch-action.yml` and
+   `${CLAUDE_PLUGIN_ROOT}/templates/bench-dispatch-action.yml` and
    `...-routine.yml`) and name the secret/variable it references (`ANTHROPIC_API_KEY`, plus
    `BENCH_ROUTINE_ID` for the routine lane). This command can't read secret *values*, only
    whether the workflow references them — say so, and **WARN** if a needed secret or

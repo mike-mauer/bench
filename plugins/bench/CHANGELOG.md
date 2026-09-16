@@ -9,7 +9,7 @@ Major because the label rename requires a manual migration in any project alread
 v1: nothing errors, dispatch just silently stops finding work. See **Migration** below.
 
 **Fixed:**
-- `docs/factory-protocol.md` was unreachable in every consuming project (#30). It lived at
+- `docs/protocol.md` was unreachable in every consuming project (#30). It lived at
   the repo root, outside `plugins/bench/`, so it was neither in the plugin payload nor copied
   by `/bench:init` or `cloud-install.sh` — while the managed CLAUDE.md block, the
   `bench-orchestrator` skill, both dispatch templates and three commands all cite it, several
@@ -17,8 +17,8 @@ v1: nothing errors, dispatch just silently stops finding work. See **Migration**
   protocol disagree, the protocol wins"), so that tiebreak resolved to nothing everywhere
   Bench was installed.
 
-  The doc now lives at `plugins/bench/docs/factory-protocol.md` — inside the payload — and
-  both installers copy it to `.claude/docs/factory-protocol.md`, plugin-owned and overwritten
+  The doc now lives at `plugins/bench/docs/protocol.md` — inside the payload — and
+  both installers copy it to `.claude/docs/protocol.md`, plugin-owned and overwritten
   on re-run like the agents, skill and workflow. Citations are now context-appropriate:
   `.claude/docs/…` in anything that lands in a project, `${CLAUDE_PLUGIN_ROOT}/docs/…` in the
   commands, `plugins/bench/docs/…` in this repo's own docs and tests.
@@ -28,7 +28,7 @@ v1: nothing errors, dispatch just silently stops finding work. See **Migration**
   `bench:ready`, `factory:in-progress` → `bench:in-progress`, `factory:approved` →
   `bench:approved`. `gate:*`, `lane:*`, `priority:*`, `type:epic`, `needs-human` and
   `human:todo` are unchanged. Renamed everywhere the vocabulary is normative: the protocol
-  (§3, §5, §8, §12), the role agents, `bench-orchestrator`, `factory.js`, `factory-ready.sh`,
+  (§3, §5, §8, §12), the role agents, `bench-orchestrator`, `factory.js`, `ready.sh`,
   the dispatch-lane templates, `/bench:init` (label creation) and `/bench:doctor`. Script,
   workflow, file and skill names keep the `factory` term — only the label vocabulary moved.
 - `/bench:init` gains a step (Step 2.6) and `.claude/docs` in its `mkdir`; the old Steps 2.6
@@ -42,6 +42,31 @@ v1: nothing errors, dispatch just silently stops finding work. See **Migration**
 - `cloud-install.sh` now installs `human-todos.sh` alongside the other three scripts, matching
   `/bench:init`. The protocol it now ships cites `.claude/scripts/human-todos.sh` by that exact
   path as §15's reminder surface, so the two installers had to agree.
+- **Renamed, dropping a redundant `factory-` prefix.** The plugin is called bench, so the
+  prefix said nothing on a file already under `plugins/bench/`:
+
+  | Was | Now |
+  |---|---|
+  | `docs/factory-protocol.md` | `docs/protocol.md` |
+  | `scripts/factory-ready.sh` | `scripts/ready.sh` |
+  | `templates/factory-dispatch-{action,routine}.yml` | `templates/bench-dispatch-{action,routine}.yml` |
+  | `.github/workflows/factory-dispatch.yml` | `.github/workflows/bench-dispatch.yml` |
+  | branch prefix `factory/<n>-<slug>` | `bench/<n>-<slug>` |
+
+  The dispatch lane keeps a prefix rather than losing it: it lands in a consumer's shared
+  `.github/workflows/`, where a bare `dispatch.yml` would be ambiguous. `ready.sh`'s log
+  prefix follows its filename (`ready:`), matching `gh-issue-dep:`, and the Actions
+  concurrency group becomes `bench-dispatch-<n>`.
+
+  **Unchanged on purpose:** `workflows/factory.js` and its `meta.name: 'factory'` — that one
+  names the thing it runs, and renaming it would break the `/bench:factory` invocation
+  surface. "Software factory" also stays in the prose: it is Bench's one-line definition, not
+  redundancy.
+
+  Existing installs pick the new names up on the next `/bench:init` or `cloud-install.sh`.
+  An old `.github/workflows/factory-dispatch.yml` is **not** removed by either installer —
+  delete it by hand after the new `bench-dispatch.yml` lands, or the issue-labeled event
+  fires both lanes.
 
 **Migration:**
 - Rename the three labels **in place**, which carries their existing issue associations —
@@ -86,7 +111,7 @@ short-lived container. See `docs/software-factory-evaluation.md` for the full re
   epics, native `blocked by` plus a portable `## Blocked by` body section for dependencies,
   and a fixed label vocabulary (`factory:ready`, `factory:in-progress`, `gate:<role>`,
   `factory:approved`, `needs-human`, `lane:*`, `priority:p0`–`p4`, `type:epic`) for pipeline
-  state — see `plugins/bench/docs/factory-protocol.md` §3–§5.
+  state — see `plugins/bench/docs/protocol.md` §3–§5.
 - **One cloud session per issue** as the execution unit; isolation is the container, so the
   worktree guards are unnecessary.
 - **`.claude/workflows/factory.js`**, a saved dynamic Workflow, as the orchestrator: triage →
@@ -97,7 +122,7 @@ short-lived container. See `docs/software-factory-evaluation.md` for the full re
 - **`scripts/tdd-order-check.sh`**, a mechanical CI gate replacing the reviewer's prompted TDD
   check: fails if a commit touches production code without an earlier test-only commit in the
   same range.
-- **`scripts/gh-issue-dep.sh`** and **`scripts/factory-ready.sh`** for native dependency edges
+- **`scripts/gh-issue-dep.sh`** and **`scripts/ready.sh`** for native dependency edges
   and the readiness query, replacing `bd dep add` / `bd ready`.
 - **`scripts/migrate-beads-to-issues.py`**, a one-off script that converts
   `.beads/issues.jsonl` into GitHub issues with matching labels and `## Blocked by` edges.

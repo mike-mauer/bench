@@ -2,7 +2,7 @@
 
 This project uses **Bench**, a multi-agent software factory built on GitHub Issues. These
 are the always-on rules for the main session. The full dispatch playbook lives in the
-`bench-orchestrator` skill, and the normative contract in `.claude/docs/factory-protocol.md`.
+`bench-orchestrator` skill, and the normative contract in `.claude/docs/protocol.md`.
 **Invoke the skill before**: dispatching any work beyond a single-file edit, touching
 multiple roles, or spawning any Worker.
 
@@ -73,7 +73,7 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
 - Handoffs are issue comments headed `## Handoff from <role>` — the heading is the
   attribution; every role posts its own before it terminates.
 - Ready = open ∧ `bench:ready` ∧ no `bench:in-progress` ∧ no `needs-human` ∧ not
-  `type:epic` ∧ every blocker closed. `.claude/scripts/factory-ready.sh` computes it. Epics are
+  `type:epic` ∧ every blocker closed. `.claude/scripts/ready.sh` computes it. Epics are
   never dispatched to a builder directly — split them into sub-issues first.
 
 ### Git Workflow
@@ -82,7 +82,7 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
   multi-file changes so there's a clean rollback point.
 - The red test is its own commit **before** any production change: `test(#<n>): …` then
   `feat|fix(#<n>): …`. CI enforces the order.
-- Ship via **feature branch (`factory/<n>-<slug>`) → draft PR → integration branch**; the
+- Ship via **feature branch (`bench/<n>-<slug>`) → draft PR → integration branch**; the
   PR body carries `Closes #<n>`. Don't push directly to the integration branch from
   pipeline work.
 

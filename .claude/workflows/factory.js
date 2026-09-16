@@ -256,7 +256,7 @@ function builderPrompt(number, role, fix) {
     return (
       head +
       `\n\nImplement it test-first: the red test is its own commit (\`test(#${number}): …\`) ` +
-      `before any production commit, on branch \`factory/${number}-<slug>\` cut from the ` +
+      `before any production commit, on branch \`bench/${number}-<slug>\` cut from the ` +
       `integration branch. Open a draft PR whose body contains \`Closes #${number}\` and your ` +
       `handoff. Post your handoff comment on the issue and move the gate label. ` +
       `Report status (done|blocked), the PR url, the branch, and a one-line summary.`

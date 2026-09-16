@@ -14,14 +14,14 @@
 # injects in step (5) requires invoking that skill before any dispatch beyond a
 # single-file edit, so without this copy that instruction is unfollowable in
 # exactly the environment this script targets; (3) copy workflows/factory.js into
-# .claude/workflows/; (4) copy scripts/{factory-ready.sh,gh-issue-dep.sh,
+# .claude/workflows/; (4) copy scripts/{ready.sh,gh-issue-dep.sh,
 # tdd-order-check.sh,human-todos.sh} into .claude/scripts/ (chmod +x) — the sweep lane, planner
 # dependency edges, and the TDD-order CI check all name `.claude/scripts/...`
 # explicitly — this project-owned copy, not the plugin's; (5) inject/refresh the managed CLAUDE.md
 # block (marker `<!-- BEGIN BENCH v:2 hash:XXXX -->`, hash from the canonical
 # scripts/bench-hash.sh so /bench:doctor and the drift-check hook agree);
 # (6) --dispatch action|routine copies that dispatch template into
-# .github/workflows/factory-dispatch.yml (skipped if it already exists — may be
+# .github/workflows/bench-dispatch.yml (skipped if it already exists — may be
 # a customization, left for a human); (7) best-effort `gh label create --force`
 # for just `human:todo` and `needs-human` when `gh` is authenticated — without
 # these two labels, protocol §15's "file a human:todo" instruction fails on
@@ -43,7 +43,7 @@ BENCH_REPO="${BENCH_REPO:-mike-mauer/bench}"
 BENCH_REF="${BENCH_REF:-main}"
 BENCH_SOURCE_DIR="${BENCH_SOURCE_DIR:-}"
 BUILTIN_AGENTS="planner engineer qa reviewer"
-BUILTIN_SCRIPTS="factory-ready.sh gh-issue-dep.sh tdd-order-check.sh human-todos.sh"
+BUILTIN_SCRIPTS="ready.sh gh-issue-dep.sh tdd-order-check.sh human-todos.sh"
 
 PROJECT_DIR=""
 WITH_ROLES=""
@@ -206,11 +206,11 @@ done
 # any disagreement, so without this copy that tiebreak resolves to nothing (#30).
 # Warn-on-failure rather than fatal — a project with stale roles still dispatches;
 # one with no protocol just loses the tiebreak.
-if install_file "docs/factory-protocol.md" \
-   "$PROJECT_DIR/.claude/docs/factory-protocol.md" ".claude/docs/factory-protocol.md"; then
-  [ "$DRY_RUN" -eq 0 ] && log "protocol: installed .claude/docs/factory-protocol.md"
+if install_file "docs/protocol.md" \
+   "$PROJECT_DIR/.claude/docs/protocol.md" ".claude/docs/protocol.md"; then
+  [ "$DRY_RUN" -eq 0 ] && log "protocol: installed .claude/docs/protocol.md"
 else
-  warn "protocol: could not fetch/write docs/factory-protocol.md"
+  warn "protocol: could not fetch/write docs/protocol.md"
 fi
 
 # Step 5 — the managed CLAUDE.md orchestrator block.
@@ -258,13 +258,13 @@ inject_claudemd
 
 # Step 6 — dispatch lane (optional).
 if [ -n "$DISPATCH" ]; then
-  dest="$PROJECT_DIR/.github/workflows/factory-dispatch.yml"
+  dest="$PROJECT_DIR/.github/workflows/bench-dispatch.yml"
   if [ -f "$dest" ]; then
-    log "dispatch: .github/workflows/factory-dispatch.yml already exists — left as is (may be customized)."
-  elif install_file "templates/factory-dispatch-$DISPATCH.yml" "$dest" ".github/workflows/factory-dispatch.yml"; then
-    [ "$DRY_RUN" -eq 0 ] && log "dispatch: installed the $DISPATCH lane → .github/workflows/factory-dispatch.yml"
+    log "dispatch: .github/workflows/bench-dispatch.yml already exists — left as is (may be customized)."
+  elif install_file "templates/bench-dispatch-$DISPATCH.yml" "$dest" ".github/workflows/bench-dispatch.yml"; then
+    [ "$DRY_RUN" -eq 0 ] && log "dispatch: installed the $DISPATCH lane → .github/workflows/bench-dispatch.yml"
   else
-    warn "dispatch: could not fetch/write templates/factory-dispatch-$DISPATCH.yml"
+    warn "dispatch: could not fetch/write templates/bench-dispatch-$DISPATCH.yml"
   fi
 fi
 

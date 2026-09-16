@@ -130,9 +130,9 @@ verifies this from history.
 - **Never push to the integration branch. Never merge your own PR.**
 
 ```bash
-git checkout -b factory/<n>-<slug>
+git checkout -b bench/<n>-<slug>
 # test(#<n>): ... commit first, then feat|fix(#<n>): ... commits
-git push -u origin factory/<n>-<slug>
+git push -u origin bench/<n>-<slug>
 gh pr create --draft --base <integration-branch> --title "..." --body-file <f>
 # body: "Closes #<n>" + the handoff block below
 ```
@@ -160,7 +160,7 @@ BLOCKERS: <none | #<human:todo number> — description>
 <one-paragraph summary of the user-facing change>
 
 ### PR
-<PR URL> · branch `factory/<n>-<slug>` · commit <sha>. Body contains `Closes #<n>`.
+<PR URL> · branch `bench/<n>-<slug>` · commit <sha>. Body contains `Closes #<n>`.
 
 ### How to verify
 1. <step-by-step instructions, no source-code reading required>

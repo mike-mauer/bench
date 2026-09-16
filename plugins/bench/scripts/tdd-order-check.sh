@@ -2,7 +2,7 @@
 # scripts/tdd-order-check.sh — verify TDD-from-history on a commit range.
 #
 # Bench v2 requires the red test to be its own commit before any production
-# change (.claude/docs/factory-protocol.md §7). This script is the machine check: it
+# change (.claude/docs/protocol.md §7). This script is the machine check: it
 # walks the given commit range oldest -> newest and fails the first time a
 # "production" commit appears without a preceding "test-only" commit in the
 # same range.

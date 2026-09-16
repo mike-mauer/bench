@@ -123,10 +123,10 @@ Read the issue (`gh issue view <n> --comments`) for the handoff thread + PR link
 commit SHAs. Review from committed refs only:
 ```bash
 git fetch origin
-git diff origin/<integration-branch>...origin/factory/<n>-<slug>   # or git show <sha>
+git diff origin/<integration-branch>...origin/bench/<n>-<slug>   # or git show <sha>
 
 # Verify TDD from history: the red test must be its own commit BEFORE the green impl.
-git log --oneline origin/<integration-branch>..origin/factory/<n>-<slug>
+git log --oneline origin/<integration-branch>..origin/bench/<n>-<slug>
 git show <red-test-sha>     # test-only, asserts the missing behavior?
 ```
 ```

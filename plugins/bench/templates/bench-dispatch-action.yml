@@ -1,8 +1,8 @@
 # Bench v2 — issue-lane dispatch (GitHub Actions).
 #
-# Installed by `/bench:init --dispatch action` as .github/workflows/factory-dispatch.yml.
+# Installed by `/bench:init --dispatch action` as .github/workflows/bench-dispatch.yml.
 # Fires the factory pipeline when a human, the planner, or the Sentry lane labels an issue
-# `bench:ready` (.claude/docs/factory-protocol.md §12, "Issue lane"). Runs on a GitHub Actions
+# `bench:ready` (.claude/docs/protocol.md §12, "Issue lane"). Runs on a GitHub Actions
 # runner — token-billed, generally available. Needs one repo secret: ANTHROPIC_API_KEY
 # (Settings → Secrets and variables → Actions → New repository secret).
 
@@ -16,7 +16,7 @@ on:
 # issue (e.g. a re-label after a manual fix) cancels any still-running job instead of
 # racing it, since both would try to move the same gate label.
 concurrency:
-  group: factory-dispatch-${{ github.event.issue.number }}
+  group: bench-dispatch-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
@@ -38,7 +38,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # Authenticates `gh` deterministically (.claude/docs/factory-protocol.md §2, first path:
+          # Authenticates `gh` deterministically (.claude/docs/protocol.md §2, first path:
           # "If `gh` is on PATH, use it"). The job's `permissions:` block above scopes what
           # this token can do; it does not by itself put the token in the agent's shell —
           # both `github_token` (for the action's own setup) and the `GH_TOKEN` env var (for
@@ -53,7 +53,7 @@ jobs:
             Report back the workflow's returned status.
           # Pre-approve the tools the workflow and the agents it spawns need — this run is
           # unattended, so anything missing here stalls on a permission prompt no one can answer.
-          # Both GitHub paths from .claude/docs/factory-protocol.md §2 are pre-approved: `gh` via Bash
+          # Both GitHub paths from .claude/docs/protocol.md §2 are pre-approved: `gh` via Bash
           # (authenticated by GH_TOKEN below) as the primary path, and the GitHub MCP tools the
           # role prompts name as the fallback ("Otherwise use the GitHub MCP tools") — so a
           # transient `gh` problem doesn't stall the run on an unanswerable permission prompt.

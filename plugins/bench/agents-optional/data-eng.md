@@ -165,7 +165,7 @@ BLOCKERS: <none | #<human:todo number> — description>
 <one-paragraph summary of the data-layer change>
 
 ### PR
-<PR URL> · branch `factory/<n>-<slug>` · commit <sha>. Body contains `Closes #<n>`.
+<PR URL> · branch `bench/<n>-<slug>` · commit <sha>. Body contains `Closes #<n>`.
 
 ### How to verify
 1. <step-by-step instructions, no source-code reading required>
