@@ -39,6 +39,9 @@ v1: nothing errors, dispatch just silently stops finding work. See **Migration**
   ambiguity had been papered over in prose (`/bench:init`'s "means a path inside **this
   project**") and mis-stated in `cloud-install.sh`'s header, which claimed the bare form
   "resolves to this project-owned copy." Both corrected.
+- `cloud-install.sh` now installs `human-todos.sh` alongside the other three scripts, matching
+  `/bench:init`. The protocol it now ships cites `.claude/scripts/human-todos.sh` by that exact
+  path as §15's reminder surface, so the two installers had to agree.
 
 **Migration:**
 - Rename the three labels **in place**, which carries their existing issue associations —

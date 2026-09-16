@@ -15,7 +15,7 @@
 # single-file edit, so without this copy that instruction is unfollowable in
 # exactly the environment this script targets; (3) copy workflows/factory.js into
 # .claude/workflows/; (4) copy scripts/{factory-ready.sh,gh-issue-dep.sh,
-# tdd-order-check.sh} into .claude/scripts/ (chmod +x) — the sweep lane, planner
+# tdd-order-check.sh,human-todos.sh} into .claude/scripts/ (chmod +x) — the sweep lane, planner
 # dependency edges, and the TDD-order CI check all name `.claude/scripts/...`
 # explicitly — this project-owned copy, not the plugin's; (5) inject/refresh the managed CLAUDE.md
 # block (marker `<!-- BEGIN BENCH v:2 hash:XXXX -->`, hash from the canonical
@@ -43,7 +43,7 @@ BENCH_REPO="${BENCH_REPO:-mike-mauer/bench}"
 BENCH_REF="${BENCH_REF:-main}"
 BENCH_SOURCE_DIR="${BENCH_SOURCE_DIR:-}"
 BUILTIN_AGENTS="planner engineer qa reviewer"
-BUILTIN_SCRIPTS="factory-ready.sh gh-issue-dep.sh tdd-order-check.sh"
+BUILTIN_SCRIPTS="factory-ready.sh gh-issue-dep.sh tdd-order-check.sh human-todos.sh"
 
 PROJECT_DIR=""
 WITH_ROLES=""
