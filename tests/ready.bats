@@ -1,10 +1,10 @@
 #!/usr/bin/env bats
-# Tests for the body-parsing function in plugins/bench/scripts/factory-ready.sh
-# (plugins/bench/docs/factory-protocol.md §5 "ready"). No network: the script is sourced
+# Tests for the body-parsing function in plugins/bench/scripts/ready.sh
+# (plugins/bench/docs/protocol.md §5 "ready"). No network: the script is sourced
 # under the BASH_SOURCE guard, which defines `parse_blocked_by` without running
 # main() or requiring `gh`.
 
-SCRIPT="$BATS_TEST_DIRNAME/../plugins/bench/scripts/factory-ready.sh"
+SCRIPT="$BATS_TEST_DIRNAME/../plugins/bench/scripts/ready.sh"
 
 setup() {
   # shellcheck disable=SC1090
@@ -78,5 +78,5 @@ setup() {
 @test "--help prints usage without requiring gh" {
   run bash "$SCRIPT" --help
   [ "$status" -eq 0 ]
-  [[ "$output" == *"factory-ready.sh"* ]]
+  [[ "$output" == *"ready.sh"* ]]
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Tests for plugins/bench/scripts/human-todos.sh — the SessionStart hook that
-# lists the current user's open `human:todo` issues (plugins/bench/docs/factory-protocol.md
+# lists the current user's open `human:todo` issues (plugins/bench/docs/protocol.md
 # §15) so a new session starts with the outstanding asks in view.
 #
 # `gh` is stubbed on PATH via a fixture script written into $BATS_TEST_TMPDIR
