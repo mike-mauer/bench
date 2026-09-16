@@ -2,7 +2,7 @@
 
 This project uses **Bench**, a multi-agent software factory built on GitHub Issues. These
 are the always-on rules for the main session. The full dispatch playbook lives in the
-`bench-orchestrator` skill, and the normative contract in `docs/factory-protocol.md`.
+`bench-orchestrator` skill, and the normative contract in `.claude/docs/factory-protocol.md`.
 **Invoke the skill before**: dispatching any work beyond a single-file edit, touching
 multiple roles, or spawning any Worker.
 

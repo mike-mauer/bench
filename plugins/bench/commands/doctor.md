@@ -7,7 +7,7 @@ description: Read-only health check of the Bench v2 install in this project — 
 
 Run a **read-only** diagnostic of the Bench install in the current project and print one
 table: `Check | Status | Fix`, where Status is `PASS` / `WARN` / `FAIL`. Do not modify any
-files. Normative spec: `docs/factory-protocol.md`.
+files. Normative spec: `${CLAUDE_PLUGIN_ROOT}/docs/factory-protocol.md`.
 
 1. **GitHub reachability.** If `gh` is on `PATH`, run `gh auth status`. Otherwise confirm the
    GitHub MCP tools are reachable — `ToolSearch` for `get_me`/`issue_read` if not already in

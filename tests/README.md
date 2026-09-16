@@ -33,14 +33,14 @@ bats tests/
 
 - `human_todos.bats` — `plugins/bench/scripts/human-todos.sh`, the SessionStart
   hook that lists the current user's open `human:todo` issues
-  (docs/factory-protocol.md §15): silent when `gh` is missing, unauthenticated,
+  (plugins/bench/docs/factory-protocol.md §15): silent when `gh` is missing, unauthenticated,
   or there are zero to-dos; two to-dos print two lines with the `## Blocks`
   ref parsed into a `(blocks #n)` suffix; a body with no `## Blocks` section
   omits the suffix. `gh` is stubbed on `PATH` via a fixture script written
   into `$BATS_TEST_TMPDIR` per test — no real GitHub CLI or network involved.
 
 - `tdd_order_check.bats` — `plugins/bench/scripts/tdd-order-check.sh`, the
-  TDD-from-history check (docs/factory-protocol.md §7): test-then-impl passes,
+  TDD-from-history check (plugins/bench/docs/factory-protocol.md §7): test-then-impl passes,
   impl-then-test and impl-only fail naming the offending commit, docs-only and
   test-only ranges pass, a merge commit is skipped (the check still fires on
   the untested production commit merged in), and a squashed commit that adds

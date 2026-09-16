@@ -13,7 +13,7 @@
 #   • .claude/workflows/factory.js is installed, overwritten on re-run;
 #   • .claude/scripts/{factory-ready,gh-issue-dep,tdd-order-check}.sh are
 #     installed and left executable;
-#   • docs/factory-protocol.md lands in .claude/docs/, overwritten on re-run —
+#   • plugins/bench/docs/factory-protocol.md lands in .claude/docs/, overwritten on re-run —
 #     the managed CLAUDE.md block and the skill both name it as the normative
 #     contract ("where this playbook and the protocol disagree, the protocol
 #     wins"), so without this copy that tiebreak resolves to nothing (#30);

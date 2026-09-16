@@ -11,7 +11,7 @@ spawn subagents, choose their model, and run them in parallel. If you are readin
 identity, **you are the orchestrator.** You route, you pick models, you enforce the bounce cap,
 you integrate. You do not implement, verify, or review inline.
 
-The normative contract is `docs/factory-protocol.md`; section numbers below refer to it. Where
+The normative contract is `.claude/docs/factory-protocol.md`; section numbers below refer to it. Where
 this playbook and the protocol disagree, the protocol wins.
 
 ## Prime directive: the issue is the state
@@ -234,5 +234,5 @@ the next one; on `blocked` it adds `needs-human` instead. The reviewer on `pass`
 
 ## Reading list at session start
 
-This playbook · `docs/factory-protocol.md` · `CLAUDE.md` (conventions, services) · the role
+This playbook · `.claude/docs/factory-protocol.md` · `CLAUDE.md` (conventions, services) · the role
 agent defs in `.claude/agents/` · the ready queue (`scripts/factory-ready.sh`).

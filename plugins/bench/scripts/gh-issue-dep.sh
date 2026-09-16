@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/gh-issue-dep.sh — native GitHub sub-issue and issue-dependency edges,
-# via `gh api`. Implements factory-protocol.md §5: parent/child uses the
+# via `gh api`. Implements .claude/docs/factory-protocol.md §5: parent/child uses the
 # sub-issues endpoint, ordering uses the issue-dependencies "blocked by"
 # endpoint. Both endpoints take the issue's numeric database *id*, not its
 # number, so every subcommand resolves number → id first.

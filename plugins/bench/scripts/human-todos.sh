@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/human-todos.sh — SessionStart hook: surface the current user's open
-# `human:todo` issues (docs/factory-protocol.md §15) so a new session starts
+# `human:todo` issues (.claude/docs/factory-protocol.md §15) so a new session starts
 # with the outstanding asks in view instead of them being forgotten in a
 # closed chat transcript.
 #

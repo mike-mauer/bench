@@ -200,6 +200,19 @@ for s in $BUILTIN_SCRIPTS; do
   fi
 done
 
+# Step 4b — the normative protocol. Plugin-owned and always overwritten, like the
+# agents and the skill: the managed CLAUDE.md block injected in step 5 and the
+# bench-orchestrator skill from step 2 both name it as the contract that wins on
+# any disagreement, so without this copy that tiebreak resolves to nothing (#30).
+# Warn-on-failure rather than fatal — a project with stale roles still dispatches;
+# one with no protocol just loses the tiebreak.
+if install_file "docs/factory-protocol.md" \
+   "$PROJECT_DIR/.claude/docs/factory-protocol.md" ".claude/docs/factory-protocol.md"; then
+  [ "$DRY_RUN" -eq 0 ] && log "protocol: installed .claude/docs/factory-protocol.md"
+else
+  warn "protocol: could not fetch/write docs/factory-protocol.md"
+fi
+
 # Step 5 — the managed CLAUDE.md orchestrator block.
 inject_claudemd() {
   tpl="$(plugin_file 'templates/CLAUDE.bench.md')" || { warn "CLAUDE.md: could not read templates/CLAUDE.bench.md — skipped."; return 1; }

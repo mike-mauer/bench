@@ -3,22 +3,49 @@
 All notable changes to the Bench plugin are documented here. Bump `version` in
 `.claude-plugin/plugin.json` on every release so `claude plugin update` picks it up.
 
-## Unreleased
+## 2.0.0 — labels renamed to `bench:`, and the protocol ships with the plugin
+
+Major because the label rename requires a manual migration in any project already running
+v1: nothing errors, dispatch just silently stops finding work. See **Migration** below.
+
+**Fixed:**
+- `docs/factory-protocol.md` was unreachable in every consuming project (#30). It lived at
+  the repo root, outside `plugins/bench/`, so it was neither in the plugin payload nor copied
+  by `/bench:init` or `cloud-install.sh` — while the managed CLAUDE.md block, the
+  `bench-orchestrator` skill, both dispatch templates and three commands all cite it, several
+  by section. `bench-orchestrator` makes it the tiebreak ("where this playbook and the
+  protocol disagree, the protocol wins"), so that tiebreak resolved to nothing everywhere
+  Bench was installed.
+
+  The doc now lives at `plugins/bench/docs/factory-protocol.md` — inside the payload — and
+  both installers copy it to `.claude/docs/factory-protocol.md`, plugin-owned and overwritten
+  on re-run like the agents, skill and workflow. Citations are now context-appropriate:
+  `.claude/docs/…` in anything that lands in a project, `${CLAUDE_PLUGIN_ROOT}/docs/…` in the
+  commands, `plugins/bench/docs/…` in this repo's own docs and tests.
 
 **Changed:**
-- Pipeline state labels are renamed from the `factory:` prefix to `bench:` — `factory:ready`
-  → `bench:ready`, `factory:in-progress` → `bench:in-progress`, `factory:approved` →
-  `bench:approved`. The `gate:*`, `lane:*`, `priority:*`, `type:epic`, `needs-human` and
-  `human:todo` labels are unchanged. Renamed everywhere the vocabulary is normative: the
-  protocol (§3, §5, §8, §12), the role agents, `bench-orchestrator`, `factory.js`,
-  `factory-ready.sh`, the dispatch-lane templates, `/bench:init` (label creation) and
-  `/bench:doctor`. Script, workflow, file and skill names keep the `factory` term — only the
-  label vocabulary moved.
-- **Migration required for projects already initialized on v2.** Their issues still carry
-  `factory:*` labels while the refreshed `factory-ready.sh` queries `bench:*`, so dispatch
-  silently returns nothing rather than erroring. Rename the three labels in place with
-  `gh label edit <old> --name <new>` (this carries the existing issue associations; delete
-  and recreate does not), then re-run `/bench:init`.
+- Pipeline state labels lose the `factory:` prefix for `bench:` — `factory:ready` →
+  `bench:ready`, `factory:in-progress` → `bench:in-progress`, `factory:approved` →
+  `bench:approved`. `gate:*`, `lane:*`, `priority:*`, `type:epic`, `needs-human` and
+  `human:todo` are unchanged. Renamed everywhere the vocabulary is normative: the protocol
+  (§3, §5, §8, §12), the role agents, `bench-orchestrator`, `factory.js`, `factory-ready.sh`,
+  the dispatch-lane templates, `/bench:init` (label creation) and `/bench:doctor`. Script,
+  workflow, file and skill names keep the `factory` term — only the label vocabulary moved.
+- `/bench:init` gains a step (Step 2.6) and `.claude/docs` in its `mkdir`; the old Steps 2.6
+  and 2.7 shift to 2.7 and 2.8, and their cross-references move with them.
+
+**Migration:**
+- Rename the three labels **in place**, which carries their existing issue associations —
+  delete-and-recreate drops pipeline state off every open issue:
+
+  ```bash
+  gh label edit factory:ready       --name bench:ready
+  gh label edit factory:in-progress --name bench:in-progress
+  gh label edit factory:approved    --name bench:approved
+  ```
+
+- Then re-run `/bench:init` (or `cloud-install.sh`) to refresh the copied roles, skill,
+  workflow, scripts and the newly-shipped protocol.
 
 ## 1.0.0 — Bench v2: GitHub Issues replace beads/Dolt
 
@@ -50,7 +77,7 @@ short-lived container. See `docs/software-factory-evaluation.md` for the full re
   epics, native `blocked by` plus a portable `## Blocked by` body section for dependencies,
   and a fixed label vocabulary (`factory:ready`, `factory:in-progress`, `gate:<role>`,
   `factory:approved`, `needs-human`, `lane:*`, `priority:p0`–`p4`, `type:epic`) for pipeline
-  state — see `docs/factory-protocol.md` §3–§5.
+  state — see `plugins/bench/docs/factory-protocol.md` §3–§5.
 - **One cloud session per issue** as the execution unit; isolation is the container, so the
   worktree guards are unnecessary.
 - **`.claude/workflows/factory.js`**, a saved dynamic Workflow, as the orchestrator: triage →

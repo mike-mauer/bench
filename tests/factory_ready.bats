@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Tests for the body-parsing function in plugins/bench/scripts/factory-ready.sh
-# (docs/factory-protocol.md §5 "ready"). No network: the script is sourced
+# (plugins/bench/docs/factory-protocol.md §5 "ready"). No network: the script is sourced
 # under the BASH_SOURCE guard, which defines `parse_blocked_by` without running
 # main() or requiring `gh`.
 

@@ -6,7 +6,7 @@ unit, and a saved dynamic Workflow (`.claude/workflows/factory.js`) drives the l
 `planner` (files sub-issues for an epic) → `engineer`/`data-eng` (test-first, on a feature
 branch, opens a draft PR) → `qa` → `design-reviewer` (if installed) → `reviewer`, each
 posting a structured handoff comment and moving a `gate:*` label until the PR is approved
-and its merge closes the issue. See `docs/factory-protocol.md` for the normative contract
+and its merge closes the issue. See `plugins/bench/docs/factory-protocol.md` for the normative contract
 and `docs/software-factory-evaluation.md` for why it's built this way.
 
 ## Install
@@ -54,7 +54,7 @@ Every lane runs the same pipeline; they differ only in what triggers a session.
 Some steps only a human can do — set a secret, approve access, run something locally, make a
 judgment call. Those get filed as a `human:todo` issue, assigned to the human, instead of
 sitting in a chat transcript: closing the issue is what unblocks the pipeline issue it's wired
-to (`docs/factory-protocol.md` §15). A SessionStart reminder lists your open ones so a new
+to (`plugins/bench/docs/factory-protocol.md` §15). A SessionStart reminder lists your open ones so a new
 session starts with the outstanding asks in view. File one yourself with `/bench:todo "<what>"`.
 
 ## What ships

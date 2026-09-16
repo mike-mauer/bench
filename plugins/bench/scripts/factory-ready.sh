@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/factory-ready.sh — implements factory-protocol.md §5 "ready":
+# scripts/factory-ready.sh — implements .claude/docs/factory-protocol.md §5 "ready":
 #
 #   ready = open ∧ bench:ready ∧ ¬bench:in-progress ∧ ¬needs-human ∧ ¬type:epic
 #           ∧ every issue referenced in the body's "## Blocked by" section is closed
@@ -17,7 +17,7 @@ die() { printf 'factory-ready: %s\n' "$*" >&2; exit 1; }
 
 usage() {
   cat <<'USAGE'
-factory-ready.sh — list issues ready for dispatch (factory-protocol.md §5).
+factory-ready.sh — list issues ready for dispatch (.claude/docs/factory-protocol.md §5).
 
 Usage:
   factory-ready.sh [--repo owner/name] [--json]
