@@ -68,9 +68,11 @@ jobs:
 
   tdd-order:
     name: tdd-order
-    # Dogfood the protocol §7 gate on factory branches only: the red test must be its own
+    # Dogfood the protocol §7 gate on pipeline branches only: the red test must be its own
     # commit before any production change. Refactor/docs PRs on other branches are exempt.
-    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'factory/')
+    # Both prefixes: `bench/` is the convention since #31, `factory/` covers branches cut
+    # before the rename. Dropping the old one would silently skip the gate on those (#33).
+    if: github.event_name == 'pull_request' && (startsWith(github.head_ref, 'bench/') || startsWith(github.head_ref, 'factory/'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

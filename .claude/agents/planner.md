@@ -148,6 +148,10 @@ Plan: <path or link>   Spec: <path or link>
 1. Read the plan/spec (and the epic's existing sub-issues, if any).
 2. For each shippable slice: `gh issue create --title "<imperative title>" --body-file <f>
    --label bench:ready --label lane:<x> --label priority:<p>` (or `issue_write` MCP), body
+   — **never** `bench:dispatch`. That label is the human-only dispatch trigger (§3): its
+   `labeled` event fires a lane, and an epic's children are already dispatched by the
+   parent run's wave, so setting it would build each child twice (#33). You mark work
+   *eligible*; a human decides when it runs.
    per the template above.
 3. Wire parent/child: `.claude/scripts/gh-issue-dep.sh child <epic> <new-issue>` if `gh`
    exists, else `sub_issue_write`.

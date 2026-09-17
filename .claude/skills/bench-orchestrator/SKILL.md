@@ -56,6 +56,12 @@ issue, and they post the same handoff comments.
 
 1. **Pick ready work.** `.claude/scripts/ready.sh`, or open ∧ `bench:ready` ∧
    ¬`bench:in-progress` ∧ ¬`needs-human` ∧ ¬`type:epic` ∧ every blocker closed (§5).
+
+   `bench:ready` is eligibility, not a trigger — adding it starts nothing. The
+   `bench:dispatch` label is the trigger, and it is **human-only** (§3): you dispatch by
+   spawning the Worker or running the workflow, never by labeling. An epic's children are
+   dispatched by the parent run's wave, so a child that could self-dispatch would be built
+   twice (#33).
 2. **Decide the route** (§9 table below) — not every issue needs every gate.
 3. **Pick the model** per Worker (§10).
 4. **Mark it owned:** add `bench:in-progress` and the builder's `gate:*` label.

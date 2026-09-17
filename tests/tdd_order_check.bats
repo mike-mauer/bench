@@ -141,3 +141,21 @@ run_check() { run bash "$SCRIPT" "$@"; }
   run_check "not-a-range"
   [ "$status" -eq 2 ]
 }
+
+# --- CI wiring (#33 follow-on) -------------------------------------------------
+# The gate is only worth having if it actually runs. This repo's ci.yml restricts
+# the tdd-order job to pipeline branches by prefix, and PR #31 renamed that
+# convention from `factory/` to `bench/` — leaving the condition stale would make
+# the gate skip silently on every branch following the new convention, which is
+# strictly worse than not having it (a green check that verified nothing).
+
+@test "ci.yml's tdd-order job runs on the documented branch prefix" {
+  ci="$BATS_TEST_DIRNAME/../.github/workflows/ci.yml"
+  cond="$(grep -n 'tdd-order-check' -B12 "$ci" | grep 'head_ref')"
+  [ -n "$cond" ] || skip "no branch restriction on the tdd-order job"
+  echo "$cond" | grep -q "bench/" || {
+    echo "FAIL tdd-order is gated on a branch prefix that excludes bench/:" >&2
+    echo "  $cond" >&2
+    false
+  }
+}

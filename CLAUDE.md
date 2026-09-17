@@ -30,7 +30,7 @@ This repo is a Claude Code plugin **marketplace** serving a single plugin: `.cla
 - **Hook scripts are best-effort:** every code path exits 0 — a hook must never block a session. They use `set -uo pipefail` (never `-e`) and log through a `log()` helper that prefixes each line (e.g. `[claudemd-drift-check] …`).
 - **Managed CLAUDE.md block:** the orchestrator block shipped in `templates/CLAUDE.bench.md` is versioned by an 8-char content hash (`<!-- BEGIN BENCH v:N hash:XXXX -->`, computed by `scripts/bench-hash.sh`) and managed by `/bench:init`; the drift-check hook warns when a project's copy goes stale.
 
-<!-- BEGIN BENCH v:2 hash:15fb5137 -->
+<!-- BEGIN BENCH v:2 hash:5840c725 -->
 ## Bench harness — operating rules
 
 This project uses **Bench**, a multi-agent software factory built on GitHub Issues. These
@@ -100,7 +100,10 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
   built-in task tools are fine for in-session scratch but are **not** the record.
 - Read with `gh issue view <n> --comments` (or the GitHub MCP `issue_read`); a Worker
   starts from the issue and its comments alone — nothing gets re-pasted into prompts.
-- Labels carry the state: `bench:ready` (dispatchable), `bench:in-progress` (owned),
+- Labels carry the state: `bench:ready` (eligible — durable, and a state only, it starts
+  nothing), `bench:dispatch` (**the human-only trigger**: its `labeled` event fires a
+  dispatch lane, and `claim()` strips it, so it behaves like a button — never set it from
+  a role, script or workflow), `bench:in-progress` (owned),
   `gate:<role>` (current gate), `bench:approved` (reviewer passed), `needs-human`
   (escalated), plus `lane:*`, `priority:p0`–`p4`, `type:epic`.
 - Handoffs are issue comments headed `## Handoff from <role>` — the heading is the

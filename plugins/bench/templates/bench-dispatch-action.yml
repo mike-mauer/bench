@@ -1,8 +1,8 @@
 # Bench v2 — issue-lane dispatch (GitHub Actions).
 #
 # Installed by `/bench:init --dispatch action` as .github/workflows/bench-dispatch.yml.
-# Fires the factory pipeline when a human, the planner, or the Sentry lane labels an issue
-# `bench:ready` (.claude/docs/protocol.md §12, "Issue lane"). Runs on a GitHub Actions
+# Fires the factory pipeline when a human labels an issue
+# `bench:dispatch` (.claude/docs/protocol.md §12, "Issue lane"). Runs on a GitHub Actions
 # runner — token-billed, generally available. Needs one repo secret: ANTHROPIC_API_KEY
 # (Settings → Secrets and variables → Actions → New repository secret).
 
@@ -12,7 +12,7 @@ on:
   issues:
     types: [labeled]
 
-# One in-flight dispatch per issue: a second `bench:ready` labeling event for the same
+# One in-flight dispatch per issue: a second `bench:dispatch` labeling event for the same
 # issue (e.g. a re-label after a manual fix) cancels any still-running job instead of
 # racing it, since both would try to move the same gate label.
 concurrency:
@@ -22,8 +22,11 @@ concurrency:
 jobs:
   dispatch:
     # `issues: [labeled]` fires on every label added to the repo. This gate keeps the job a
-    # no-op except on the one label that actually means "ready to run".
-    if: github.event.label.name == 'bench:ready'
+    # no-op except on the one label that actually means "run this now".
+    # `bench:dispatch` is human-only: the planner sets `bench:ready` (§5 eligibility)
+    # and never this, so an epic's children cannot self-dispatch while the parent
+    # run is already fanning them out through runWaves (#33).
+    if: github.event.label.name == 'bench:dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: write        # the builder commits to a feature branch and opens a PR

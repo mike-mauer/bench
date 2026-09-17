@@ -67,7 +67,10 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
   built-in task tools are fine for in-session scratch but are **not** the record.
 - Read with `gh issue view <n> --comments` (or the GitHub MCP `issue_read`); a Worker
   starts from the issue and its comments alone — nothing gets re-pasted into prompts.
-- Labels carry the state: `bench:ready` (dispatchable), `bench:in-progress` (owned),
+- Labels carry the state: `bench:ready` (eligible — durable, and a state only, it starts
+  nothing), `bench:dispatch` (**the human-only trigger**: its `labeled` event fires a
+  dispatch lane, and `claim()` strips it, so it behaves like a button — never set it from
+  a role, script or workflow), `bench:in-progress` (owned),
   `gate:<role>` (current gate), `bench:approved` (reviewer passed), `needs-human`
   (escalated), plus `lane:*`, `priority:p0`–`p4`, `type:epic`.
 - Handoffs are issue comments headed `## Handoff from <role>` — the heading is the
