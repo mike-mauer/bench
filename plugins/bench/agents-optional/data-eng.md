@@ -1,7 +1,7 @@
 ---
 name: data-eng
 description: Data/query specialist — owns the data-access layer, query/transform engine, and any input-safety validator. Spawn as the data-lane builder (alongside engineer) for data-layer implementation issues, test-first — see §9's routing table.
-tools: Read, Edit, Write, Bash, Grep, Glob
+tools: Read, Edit, Write, Bash, Grep, Glob, ToolSearch, mcp__github__issue_read, mcp__github__issue_write, mcp__github__add_issue_comment, mcp__github__sub_issue_write, mcp__github__pull_request_read, mcp__github__create_pull_request, mcp__github__update_pull_request, mcp__github__get_me
 model: sonnet
 ---
 
@@ -102,7 +102,7 @@ failing-test-first loop is your primary safety net:
 1. **RED** — write a test that pins the intended behavior and fails: the exact query shape
    generated, a score threshold, a validator accept/reject decision, a transform result.
    **Commit it alone, before any implementation, with subject `test(#<n>): <what it
-   pins>`.** `scripts/tdd-order-check.sh` enforces the ordering in CI.
+   pins>`.** `.claude/scripts/tdd-order-check.sh` enforces the ordering in CI.
 2. **GREEN** — minimum query/engine change to pass, subject `feat(#<n>): …` or
    `fix(#<n>): …`.
 3. **REFACTOR** — tidy with the suite green.
@@ -165,7 +165,7 @@ BLOCKERS: <none | #<human:todo number> — description>
 <one-paragraph summary of the data-layer change>
 
 ### PR
-<PR URL> · branch `factory/<n>-<slug>` · commit <sha>. Body contains `Closes #<n>`.
+<PR URL> · branch `bench/<n>-<slug>` · commit <sha>. Body contains `Closes #<n>`.
 
 ### How to verify
 1. <step-by-step instructions, no source-code reading required>

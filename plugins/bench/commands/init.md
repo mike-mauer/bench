@@ -9,7 +9,7 @@ argument-hint: "[--with data-eng,design-reviewer] [--dispatch action|routine|non
 You are setting up Bench in the current project. A plugin cannot edit a project's
 `CLAUDE.md`, write into `.claude/`, or create GitHub labels on its own — that is what this
 command does. Work through the steps below, reporting what you changed. Normative spec:
-`docs/factory-protocol.md` — follow it exactly if anything below is ambiguous.
+`${CLAUDE_PLUGIN_ROOT}/docs/protocol.md` — follow it exactly if anything below is ambiguous.
 
 Arguments (from `$ARGUMENTS`):
 - `--with <roles>` — comma-separated optional roles to install: `data-eng`, `design-reviewer`.
@@ -21,7 +21,7 @@ agents at `${CLAUDE_PLUGIN_ROOT}/agents-optional/`, the orchestrator skill at
 `${CLAUDE_PLUGIN_ROOT}/skills/bench-orchestrator/SKILL.md`, the workflow at
 `${CLAUDE_PLUGIN_ROOT}/workflows/factory.js`, the scripts roles and CI depend on at
 `${CLAUDE_PLUGIN_ROOT}/scripts/`, dispatch templates at
-`${CLAUDE_PLUGIN_ROOT}/templates/factory-dispatch-*.yml`.
+`${CLAUDE_PLUGIN_ROOT}/templates/bench-dispatch-*.yml`.
 
 ## Step 1 — Inject the orchestrator rules into CLAUDE.md (versioned marker block)
 Same mechanism as v1, one version bump (`v:2` — GitHub Issues replace the v1 tracker). The block is
@@ -44,12 +44,12 @@ delimited so it can be refreshed idempotently on future runs.
 Cloud sessions never load marketplace plugins — they only see what's committed in the repo.
 So the project-owned copies under `.claude/` are what actually runs there; the plugin copies
 are the source of truth `/bench:doctor` diffs against. This applies just as much to the
-orchestrator skill and the scripts role prompts and CI shell out to: a role prompt or CI job
-that says `scripts/tdd-order-check.sh` means a path inside **this project**, not the plugin —
-if it's never copied in, that path doesn't exist wherever the plugin itself isn't loaded
-(any cloud session, and any GitHub Actions runner, which never has the plugin at all).
+orchestrator skill and the scripts role prompts and CI shell out to: every such reference is
+written `.claude/scripts/…`, a path inside **this project**, not the plugin — if it's never
+copied in, that path doesn't exist wherever the plugin itself isn't loaded (any cloud
+session, and any GitHub Actions runner, which never has the plugin at all).
 
-1. `mkdir -p .claude/agents .claude/workflows .claude/skills/bench-orchestrator .claude/scripts`.
+1. `mkdir -p .claude/agents .claude/workflows .claude/skills/bench-orchestrator .claude/scripts .claude/docs`.
 2. Copy every `${CLAUDE_PLUGIN_ROOT}/agents/*.md` → `.claude/agents/` (`planner`, `engineer`,
    `qa`, `reviewer`). Overwrite any existing copies of these four — they're plugin-owned; a
    project should never hand-edit them (use `/bench:new-agent` for a custom role instead).
@@ -64,15 +64,22 @@ if it's never copied in, that path doesn't exist wherever the plugin itself isn'
    load the marketplace plugin.
 5. Copy `${CLAUDE_PLUGIN_ROOT}/workflows/factory.js` → `.claude/workflows/factory.js`
    (overwrite — plugin-owned).
-6. Copy
-   `${CLAUDE_PLUGIN_ROOT}/scripts/{factory-ready.sh,gh-issue-dep.sh,tdd-order-check.sh,human-todos.sh}`
+6. Copy `${CLAUDE_PLUGIN_ROOT}/docs/protocol.md` → `.claude/docs/protocol.md`
+   (overwrite — plugin-owned). This is the normative contract: the managed CLAUDE.md block
+   Step 5 injects and the skill copied in Step 2.4 both cite it by section, and the skill
+   makes it the tiebreak — "where this playbook and the protocol disagree, the protocol
+   wins." Without this copy the protocol is unreachable in the project and that tiebreak
+   resolves to nothing (#30). Cite it as `.claude/docs/protocol.md` in anything you
+   write into the project.
+7. Copy
+   `${CLAUDE_PLUGIN_ROOT}/scripts/{ready.sh,gh-issue-dep.sh,tdd-order-check.sh,human-todos.sh}`
    → `.claude/scripts/` (overwrite — plugin-owned), then `chmod +x` each. The first three are
    the scripts referenced by bare `scripts/…` path elsewhere in the role prompts and the skill
    (planner's dependency edges, the sweep lane, the engineer/reviewer TDD-order check) and by
    the CI job Step 5 installs — all of which now mean `.claude/scripts/…` in this project.
    `human-todos.sh` is the protocol §15 reminder surface; copying it here is necessary but not
-   sufficient — Step 2.7 is what actually makes it run.
-7. Wire `human-todos.sh` into a SessionStart hook. The plugin's own `hooks/hooks.json` never
+   sufficient — Step 2.8 is what actually makes it run.
+8. Wire `human-todos.sh` into a SessionStart hook. The plugin's own `hooks/hooks.json` never
    reaches a project (Step 2's preamble above), so without a project-owned hook, §15's "the
    plugin runs it best-effort at SessionStart, so a new session starts with the outstanding asks
    in view" is only true in a local session with the marketplace plugin loaded — silent in every
@@ -129,31 +136,31 @@ Actions runner, token-billed, generally available), **routine** (runs in a Claud
 session, subscription-billed, research preview), or **none** (skip — dispatch stays manual or
 sweep-only).
 
-- `action` → copy `${CLAUDE_PLUGIN_ROOT}/templates/factory-dispatch-action.yml` to
-  `.github/workflows/factory-dispatch.yml`. Tell the user it needs one repo secret:
+- `action` → copy `${CLAUDE_PLUGIN_ROOT}/templates/bench-dispatch-action.yml` to
+  `.github/workflows/bench-dispatch.yml`. Tell the user it needs one repo secret:
   `ANTHROPIC_API_KEY` (repo Settings → Secrets and variables → Actions → New repository
   secret).
-- `routine` → copy `${CLAUDE_PLUGIN_ROOT}/templates/factory-dispatch-routine.yml` to
-  `.github/workflows/factory-dispatch.yml`. Tell the user it needs the same
+- `routine` → copy `${CLAUDE_PLUGIN_ROOT}/templates/bench-dispatch-routine.yml` to
+  `.github/workflows/bench-dispatch.yml`. Tell the user it needs the same
   `ANTHROPIC_API_KEY` secret, **plus** a repo variable `BENCH_ROUTINE_ID` naming a Routine
   created ahead of time (e.g. `create_trigger` with `create_new_session_on_fire: true` and a
   prompt like "Run the factory workflow for the issue named in this message" — its returned
   `trig_...` id is the variable value), and that Routines are a **research preview**: the
   `/fire` endpoint and its `anthropic-beta` header may change.
 - `none` → install nothing here. Remind the user that issues still get worked via the sweep
-  lane (a cron Routine or Action running `.claude/scripts/factory-ready.sh`) or by dispatching
+  lane (a cron Routine or Action running `.claude/scripts/ready.sh`) or by dispatching
   the workflow or roles by hand.
 
-If `.github/workflows/factory-dispatch.yml` already exists and differs from the template
+If `.github/workflows/bench-dispatch.yml` already exists and differs from the template
 being installed, show the diff and ask before overwriting — it may be a deliberate
 customization.
 
 ## Step 5 — Wire the TDD-order check into CI
-`.claude/scripts/tdd-order-check.sh <base>..<head>` (copied into the project in Step 2.6) is
+`.claude/scripts/tdd-order-check.sh <base>..<head>` (copied into the project in Step 2.7) is
 the machine check for protocol §7 (the red test must be its own commit before any production
 change). The CI job runs as plain shell on a GitHub Actions runner — there is no Claude Code
 session and no `${CLAUDE_PLUGIN_ROOT}` there, so the job can only work against a path that was
-actually committed into the repo; that's why Step 2.6 must run before this step, and why the
+actually committed into the repo; that's why Step 2.7 must run before this step, and why the
 job below points at `.claude/scripts/`, never a bare `scripts/…`.
 
 1. Look for an existing CI workflow under `.github/workflows/` — anything that isn't the
@@ -203,8 +210,8 @@ order in protocol §15 (init's to-dos block no pipeline issue, so its step 2 doe
 - **TDD-order CI snippet** — if Step 5 found no existing CI workflow to append to: the
   `tdd-order:` job snippet Step 5 printed, and where to add it (a new
   `.github/workflows/ci.yml`, or wherever the project's checks eventually live).
-- **`human-todos.sh` SessionStart hook** — if Step 2.7 couldn't merge it (`jq` missing, or
-  `.claude/settings.json` isn't valid JSON): the hook entry Step 2.7 printed, and where it
+- **`human-todos.sh` SessionStart hook** — if Step 2.8 couldn't merge it (`jq` missing, or
+  `.claude/settings.json` isn't valid JSON): the hook entry Step 2.8 printed, and where it
   goes (`.claude/settings.json`'s `hooks.SessionStart`) — without it, §15's reminder surface
   never runs in this project.
 

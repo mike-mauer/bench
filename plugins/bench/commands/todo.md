@@ -6,7 +6,7 @@ argument-hint: "\"<what you need from the human>\" [--blocks <issue-number>]"
 
 # /bench:todo — file a human to-do
 
-You are filing one `human:todo` issue per docs/factory-protocol.md §15. Normative spec: that
+You are filing one `human:todo` issue per ${CLAUDE_PLUGIN_ROOT}/docs/protocol.md §15. Normative spec: that
 document — follow it exactly if anything below is ambiguous.
 
 Arguments (from `$ARGUMENTS`):
@@ -64,7 +64,7 @@ new one, so it doesn't apply here.)
 
 Read pipeline issue `#n`'s current body, add `- #<todo>` under its `## Blocked by` section
 (create the section if absent), and write the body back. Where the GitHub dependency API is
-reachable, also set a native `blocked by` edge (`scripts/gh-issue-dep.sh block <n> <todo>` if
+reachable, also set a native `blocked by` edge (`.claude/scripts/gh-issue-dep.sh block <n> <todo>` if
 present in this project, else `gh api` directly). Don't label `#n` `needs-human` — that label
 is reserved for a gate escalation (§8); dropping out of §5 readiness is the unblock here.
 

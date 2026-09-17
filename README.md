@@ -6,7 +6,7 @@ unit, and a saved dynamic Workflow (`.claude/workflows/factory.js`) drives the l
 `planner` (files sub-issues for an epic) → `engineer`/`data-eng` (test-first, on a feature
 branch, opens a draft PR) → `qa` → `design-reviewer` (if installed) → `reviewer`, each
 posting a structured handoff comment and moving a `gate:*` label until the PR is approved
-and its merge closes the issue. See `docs/factory-protocol.md` for the normative contract
+and its merge closes the issue. See `plugins/bench/docs/protocol.md` for the normative contract
 and `docs/software-factory-evaluation.md` for why it's built this way.
 
 ## Install
@@ -38,10 +38,10 @@ after a local install) to finish (labels, dispatch lane, TDD-order CI check).
 Every lane runs the same pipeline; they differ only in what triggers a session.
 
 - **Issue lane.** A human or the planner labels an issue `bench:ready`. A GitHub Actions
-  workflow (`templates/factory-dispatch-action.yml`) or a Claude Code Routine
-  (`templates/factory-dispatch-routine.yml`) fires on that label and runs the factory
+  workflow (`templates/bench-dispatch-action.yml`) or a Claude Code Routine
+  (`templates/bench-dispatch-routine.yml`) fires on that label and runs the factory
   workflow for the issue. Pick one at `/bench:init --dispatch action|routine`.
-- **Sweep lane.** A cron trigger runs `scripts/factory-ready.sh` — open, `bench:ready`, not
+- **Sweep lane.** A cron trigger runs `scripts/ready.sh` — open, `bench:ready`, not
   in progress, not blocked, no `needs-human` — and fires one session per ready issue. Catches
   anything the issue lane missed or that was made ready later by a closing blocker.
 - **Sentry lane.** An issue-alert webhook fires a session that reads the Sentry payload
@@ -54,7 +54,7 @@ Every lane runs the same pipeline; they differ only in what triggers a session.
 Some steps only a human can do — set a secret, approve access, run something locally, make a
 judgment call. Those get filed as a `human:todo` issue, assigned to the human, instead of
 sitting in a chat transcript: closing the issue is what unblocks the pipeline issue it's wired
-to (`docs/factory-protocol.md` §15). A SessionStart reminder lists your open ones so a new
+to (`plugins/bench/docs/protocol.md` §15). A SessionStart reminder lists your open ones so a new
 session starts with the outstanding asks in view. File one yourself with `/bench:todo "<what>"`.
 
 ## What ships
@@ -68,10 +68,10 @@ plugins/bench/
 ├── commands/          init · doctor · new-agent · todo
 ├── hooks/hooks.json   SessionStart: CLAUDE.md drift check · human-todos (best-effort)
 ├── scripts/           bench-hash.sh · claudemd-drift-check.sh · tdd-order-check.sh
-│                       gh-issue-dep.sh · factory-ready.sh · human-todos.sh · migrate-beads-to-issues.py
+│                       gh-issue-dep.sh · ready.sh · human-todos.sh · migrate-beads-to-issues.py
 │                       cloud-install.sh (copies agents + workflow + block into a repo)
 └── templates/         CLAUDE.bench.md · custom-agent.md
-                        factory-dispatch-action.yml · factory-dispatch-routine.yml
+                        bench-dispatch-action.yml · bench-dispatch-routine.yml
 ```
 
 ## Custom roles

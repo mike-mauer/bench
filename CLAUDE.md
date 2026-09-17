@@ -7,7 +7,7 @@ This file provides instructions and context for AI coding agents working on this
 This project tracks work in GitHub Issues, not a local database. One issue = one unit of
 work; labels carry pipeline state (`bench:ready`, `gate:<role>`, `bench:approved`,
 `needs-human`); handoffs are issue comments headed `## Handoff from <role>`. The normative
-spec is `docs/factory-protocol.md` — read it before touching the pipeline, the agent
+spec is `plugins/bench/docs/protocol.md` — read it before touching the pipeline, the agent
 prompts, or the workflow script.
 
 ## Build & Test
@@ -18,24 +18,24 @@ This repo is the source of the Bench plugin — there is no app to build. Qualit
 claude plugin validate ./plugins/bench --strict         # plugin manifest/structure validation
 shellcheck plugins/bench/scripts/*.sh                    # lint all shell scripts
 bats tests/                                               # script tests (tests/ is landing on a parallel branch)
-scripts/tdd-order-check.sh <base>..<head>                 # verify red-test-before-green commit order
+plugins/bench/scripts/tdd-order-check.sh <base>..<head>   # verify red-test-before-green commit order
 ```
 
 ## Architecture Overview
 
-This repo is a Claude Code plugin **marketplace** serving a single plugin: `.claude-plugin/marketplace.json` points at `./plugins/bench`. Inside `plugins/bench/`, `agents/` holds the core pipeline roles (planner, engineer, qa, reviewer) and `agents-optional/` the opt-in specialists (data-eng, design-reviewer) that `/bench:init --with` copies into a consuming project. `workflows/factory.js` is the saved dynamic Workflow that drives the per-issue loop end to end (triage → plan → build → gate loop → escalate). `skills/bench-orchestrator` carries the dispatch playbook. `commands/` holds the `/bench:*` slash commands (`init`, `doctor`, `new-agent`); `/bench:init` copies the agents and the workflow into a consuming project's `.claude/`, creates the GitHub labels from `docs/factory-protocol.md` §3, and installs a dispatch lane (`templates/factory-dispatch-action.yml` or `-routine.yml`) so a cloud session never depends on marketplace plugin loading. `hooks/hooks.json` wires only a SessionStart CLAUDE.md drift check (`scripts/claudemd-drift-check.sh`) — there is no worktree reaper, session-end guard, or cloud-push hook in v2. `scripts/` also carries `bench-hash.sh` (the managed-block hash), `gh-issue-dep.sh` (native `blocked by` edges), `factory-ready.sh` (dispatch readiness query), `tdd-order-check.sh` (CI gate), and a one-off v1→v2 tracker-migration script. See `docs/factory-protocol.md` §14 for the full layout.
+This repo is a Claude Code plugin **marketplace** serving a single plugin: `.claude-plugin/marketplace.json` points at `./plugins/bench`. Inside `plugins/bench/`, `agents/` holds the core pipeline roles (planner, engineer, qa, reviewer) and `agents-optional/` the opt-in specialists (data-eng, design-reviewer) that `/bench:init --with` copies into a consuming project. `workflows/factory.js` is the saved dynamic Workflow that drives the per-issue loop end to end (triage → plan → build → gate loop → escalate). `skills/bench-orchestrator` carries the dispatch playbook. `commands/` holds the `/bench:*` slash commands (`init`, `doctor`, `new-agent`); `/bench:init` copies the agents and the workflow into a consuming project's `.claude/`, creates the GitHub labels from `plugins/bench/docs/protocol.md` §3, and installs a dispatch lane (`templates/bench-dispatch-action.yml` or `-routine.yml`) so a cloud session never depends on marketplace plugin loading. `hooks/hooks.json` wires only a SessionStart CLAUDE.md drift check (`scripts/claudemd-drift-check.sh`) — there is no worktree reaper, session-end guard, or cloud-push hook in v2. `scripts/` also carries `bench-hash.sh` (the managed-block hash), `gh-issue-dep.sh` (native `blocked by` edges), `ready.sh` (dispatch readiness query), `tdd-order-check.sh` (CI gate), and a one-off v1→v2 tracker-migration script. See `plugins/bench/docs/protocol.md` §14 for the full layout.
 
 ## Conventions & Patterns
 
 - **Hook scripts are best-effort:** every code path exits 0 — a hook must never block a session. They use `set -uo pipefail` (never `-e`) and log through a `log()` helper that prefixes each line (e.g. `[claudemd-drift-check] …`).
 - **Managed CLAUDE.md block:** the orchestrator block shipped in `templates/CLAUDE.bench.md` is versioned by an 8-char content hash (`<!-- BEGIN BENCH v:N hash:XXXX -->`, computed by `scripts/bench-hash.sh`) and managed by `/bench:init`; the drift-check hook warns when a project's copy goes stale.
 
-<!-- BEGIN BENCH v:2 hash:c7d54c90 -->
+<!-- BEGIN BENCH v:2 hash:15fb5137 -->
 ## Bench harness — operating rules
 
 This project uses **Bench**, a multi-agent software factory built on GitHub Issues. These
 are the always-on rules for the main session. The full dispatch playbook lives in the
-`bench-orchestrator` skill, and the normative contract in `docs/factory-protocol.md`.
+`bench-orchestrator` skill, and the normative contract in `.claude/docs/protocol.md`.
 **Invoke the skill before**: dispatching any work beyond a single-file edit, touching
 multiple roles, or spawning any Worker.
 
@@ -106,7 +106,7 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
 - Handoffs are issue comments headed `## Handoff from <role>` — the heading is the
   attribution; every role posts its own before it terminates.
 - Ready = open ∧ `bench:ready` ∧ no `bench:in-progress` ∧ no `needs-human` ∧ not
-  `type:epic` ∧ every blocker closed. `scripts/factory-ready.sh` computes it. Epics are
+  `type:epic` ∧ every blocker closed. `.claude/scripts/ready.sh` computes it. Epics are
   never dispatched to a builder directly — split them into sub-issues first.
 
 ### Git Workflow
@@ -115,7 +115,7 @@ is regenerated on `/bench:init`; the agent defs are the durable registration.
   multi-file changes so there's a clean rollback point.
 - The red test is its own commit **before** any production change: `test(#<n>): …` then
   `feat|fix(#<n>): …`. CI enforces the order.
-- Ship via **feature branch (`factory/<n>-<slug>`) → draft PR → integration branch**; the
+- Ship via **feature branch (`bench/<n>-<slug>`) → draft PR → integration branch**; the
   PR body carries `Closes #<n>`. Don't push directly to the integration branch from
   pipeline work.
 

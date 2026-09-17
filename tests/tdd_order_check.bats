@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Tests for plugins/bench/scripts/tdd-order-check.sh — the machine check for
-# TDD-from-history (docs/factory-protocol.md §7): the first production commit
+# TDD-from-history (plugins/bench/docs/protocol.md §7): the first production commit
 # in a range must be preceded, in that same range, by a test-only commit.
 #
 # Each test builds a throwaway git repo under $BATS_TEST_TMPDIR and drives the

@@ -13,9 +13,9 @@ what the issue asked for.
 
 **GitHub access.** If `gh` is on `PATH`, use it: `gh issue view <n> --comments`,
 `gh issue comment <n> --body-file <f>`, `gh issue edit <n> --add-label/--remove-label`,
-`gh pr create --draft`, `gh pr ready`. Otherwise use the GitHub MCP tools (`issue_read`,
-`add_issue_comment`, `issue_write`, `sub_issue_write`, `create_pull_request`,
-`update_pull_request`). Load them with ToolSearch if they are not already in context.
+`gh pr ready`. Otherwise use the GitHub MCP tools (`issue_read`, `add_issue_comment`,
+`issue_write`, `pull_request_read`, `update_pull_request`). Load them with ToolSearch if
+they are not already in context.
 Never assume a legacy issue-tracker CLI or local database exist. **The issue is the context**: read it
 and its comments before doing anything; nothing needs re-pasting into your prompt.
 

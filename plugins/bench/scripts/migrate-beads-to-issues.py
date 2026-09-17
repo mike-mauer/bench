@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """migrate-beads-to-issues.py — one-off migration from a beads issues.jsonl
-export to GitHub Issues, per docs/factory-protocol.md §4. stdlib only.
+export to GitHub Issues, per plugins/bench/docs/protocol.md §4. stdlib only.
 
 Reads open/in_progress beads records (closed ones too with --include-closed)
 and maps each to a GitHub issue (title, protocol-shaped body, labels). Beads

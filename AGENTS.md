@@ -27,5 +27,5 @@ cp -rf source dest          # NOT: cp -r source dest
 ## Work tracking
 
 This project tracks work in GitHub Issues, driven by the Bench factory pipeline. See
-`docs/factory-protocol.md` for the full contract and `CLAUDE.md` for the always-on
+`plugins/bench/docs/protocol.md` for the full contract and `CLAUDE.md` for the always-on
 operating rules.

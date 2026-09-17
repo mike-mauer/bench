@@ -237,7 +237,7 @@ if the diff touches anything the stack trace did not point at.
 | Delete | Keep (edited) | New |
 |---|---|---|
 | `install-bd.sh`, `beads-bootstrap.sh`, `beads-cloud-push.sh`, `beads-stop-guard.sh` | `agents/*.md` (strip every `bd` line; read the issue via MCP/`gh`; post handoffs as comments; roughly half the length) | `.claude/workflows/factory.js` |
-| `guard-bd-actor.sh`, `guard-checkout.sh`, `guard-task-tools.sh`, `worktree-reap.sh` | `skills/bench-orchestrator` (becomes the design note behind the workflow) | `.github/workflows/factory-dispatch.yml` (label → fire) |
+| `guard-bd-actor.sh`, `guard-checkout.sh`, `guard-task-tools.sh`, `worktree-reap.sh` | `skills/bench-orchestrator` (becomes the design note behind the workflow) | `.github/workflows/bench-dispatch.yml` (label → fire) |
 | `beads-health-check` skill, `docs/server-mode-migration.md` | `commands/init.md` (much smaller: labels, workflow, Action, CLAUDE.md block), `doctor.md`, `new-agent.md` | `scripts/tdd-order-check.sh` for CI |
 | `.beads/`, `.beads/hooks/*`, the beads plugin dependency | `templates/CLAUDE.bench.md` (drop the beads section) | `scripts/migrate-beads-to-issues.py` (one-off) |
 | ~1,600 lines of bats tests for the above | `claudemd-drift-check.sh`, `bench-hash.sh` | Sentry-lane prompt for the Routine |

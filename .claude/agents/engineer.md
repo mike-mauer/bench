@@ -91,7 +91,7 @@ a failing test pass.
 3. **REFACTOR** — clean up implementation and test with the suite green; behavior must not
    change. Re-run to confirm still green.
 
-This is **machine-checked**: `scripts/tdd-order-check.sh <base>..<head>` fails the build if
+This is **machine-checked**: `.claude/scripts/tdd-order-check.sh <base>..<head>` fails the build if
 any commit in the range touches production code without an earlier test-only commit, and CI
 runs it on every PR. A test that passes the moment you write it (before any implementation)
 is not a red test — strengthen it until it fails without your change; the reviewer also
@@ -124,15 +124,15 @@ verifies this from history.
 - Branch: `factory/<issue-number>-<short-slug>`, cut from the integration branch (`main`
   unless `CLAUDE.md` says otherwise).
 - **TDD from history is mandatory and machine-checked** — see above; CI enforces it with
-  `scripts/tdd-order-check.sh`.
+  `.claude/scripts/tdd-order-check.sh`.
 - Open a **draft** PR targeting the integration branch. Body must contain `Closes #<n>` plus
   this handoff's What changed / How to verify / Commands / TDD evidence / Edge cases.
 - **Never push to the integration branch. Never merge your own PR.**
 
 ```bash
-git checkout -b factory/<n>-<slug>
+git checkout -b bench/<n>-<slug>
 # test(#<n>): ... commit first, then feat|fix(#<n>): ... commits
-git push -u origin factory/<n>-<slug>
+git push -u origin bench/<n>-<slug>
 gh pr create --draft --base <integration-branch> --title "..." --body-file <f>
 # body: "Closes #<n>" + the handoff block below
 ```
@@ -160,7 +160,7 @@ BLOCKERS: <none | #<human:todo number> — description>
 <one-paragraph summary of the user-facing change>
 
 ### PR
-<PR URL> · branch `factory/<n>-<slug>` · commit <sha>. Body contains `Closes #<n>`.
+<PR URL> · branch `bench/<n>-<slug>` · commit <sha>. Body contains `Closes #<n>`.
 
 ### How to verify
 1. <step-by-step instructions, no source-code reading required>

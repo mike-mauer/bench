@@ -11,13 +11,19 @@
 #     re-run — the managed CLAUDE.md block requires it, so it fails the
 #     install like a missing agent when it can't be written;
 #   • .claude/workflows/factory.js is installed, overwritten on re-run;
-#   • .claude/scripts/{factory-ready,gh-issue-dep,tdd-order-check}.sh are
-#     installed and left executable;
+#   • .claude/scripts/{ready,gh-issue-dep,tdd-order-check,human-todos}.sh
+#     are installed and left executable — human-todos.sh because the protocol
+#     this script now ships cites `.claude/scripts/human-todos.sh` by that exact
+#     path as §15's reminder surface, and /bench:init already installs it;
+#   • plugins/bench/docs/protocol.md lands in .claude/docs/, overwritten on re-run —
+#     the managed CLAUDE.md block and the skill both name it as the normative
+#     contract ("where this playbook and the protocol disagree, the protocol
+#     wins"), so without this copy that tiebreak resolves to nothing (#30);
 #   • CLAUDE.md gets the `<!-- BEGIN BENCH v:2 hash:XXXX -->` block, hash from
 #     the canonical bench-hash.sh, refreshed in place on a stale re-run, and
 #     left alone with a BEGIN-but-no-END marker;
 #   • --dispatch installs the matching template, but never overwrites an
-#     existing .github/workflows/factory-dispatch.yml;
+#     existing .github/workflows/bench-dispatch.yml;
 #   • --dry-run writes nothing;
 #   • it never runs git commit, never touches .claude/settings.json;
 #   • exit 1 when the agents or the skill could not be written.
@@ -64,25 +70,50 @@ run_install() { run bash "$SCRIPT" --project-dir "$PROJ" "$@"; }
 @test "fresh project: installs the scripts, executable" {
   run_install
   [ "$status" -eq 0 ]
-  for s in factory-ready.sh gh-issue-dep.sh tdd-order-check.sh; do
+  for s in ready.sh gh-issue-dep.sh tdd-order-check.sh; do
     [ -f "$PROJ/.claude/scripts/$s" ]
     [ -x "$PROJ/.claude/scripts/$s" ]
     diff -q "$PROJ/.claude/scripts/$s" "$PLUGIN_ROOT/scripts/$s"
   done
 }
 
+@test "fresh project: installs human-todos.sh, the protocol's §15 reminder surface" {
+  run_install
+  [ "$status" -eq 0 ]
+  [ -f "$PROJ/.claude/scripts/human-todos.sh" ]
+  [ -x "$PROJ/.claude/scripts/human-todos.sh" ]
+}
+
+@test "fresh project: installs the factory protocol doc" {
+  run_install
+  [ "$status" -eq 0 ]
+  [ -f "$PROJ/.claude/docs/protocol.md" ]
+  diff -q "$PROJ/.claude/docs/protocol.md" \
+    "$PLUGIN_ROOT/docs/protocol.md"
+}
+
+@test "re-run: the protocol doc is overwritten (plugin-owned)" {
+  run_install
+  [ "$status" -eq 0 ]
+  echo "stale protocol" > "$PROJ/.claude/docs/protocol.md"
+  run_install
+  [ "$status" -eq 0 ]
+  diff -q "$PROJ/.claude/docs/protocol.md" \
+    "$PLUGIN_ROOT/docs/protocol.md"
+}
+
 @test "re-run: skill and scripts overwritten" {
   run_install
   [ "$status" -eq 0 ]
   echo "MUTATED" >> "$PROJ/.claude/skills/bench-orchestrator/SKILL.md"
-  echo "MUTATED" >> "$PROJ/.claude/scripts/factory-ready.sh"
+  echo "MUTATED" >> "$PROJ/.claude/scripts/ready.sh"
 
   run_install
 
   [ "$status" -eq 0 ]
   ! grep -q MUTATED "$PROJ/.claude/skills/bench-orchestrator/SKILL.md"
-  ! grep -q MUTATED "$PROJ/.claude/scripts/factory-ready.sh"
-  [ -x "$PROJ/.claude/scripts/factory-ready.sh" ]
+  ! grep -q MUTATED "$PROJ/.claude/scripts/ready.sh"
+  [ -x "$PROJ/.claude/scripts/ready.sh" ]
 }
 
 @test "a missing skill fails the install like a missing agent" {
@@ -175,25 +206,25 @@ run_install() { run bash "$SCRIPT" --project-dir "$PROJ" "$@"; }
   run_install --dispatch action
 
   [ "$status" -eq 0 ]
-  [ -f "$PROJ/.github/workflows/factory-dispatch.yml" ]
-  grep -q 'claude-code-action' "$PROJ/.github/workflows/factory-dispatch.yml"
+  [ -f "$PROJ/.github/workflows/bench-dispatch.yml" ]
+  grep -q 'claude-code-action' "$PROJ/.github/workflows/bench-dispatch.yml"
 }
 
 @test "--dispatch routine installs the routine dispatch template" {
   run_install --dispatch routine
 
   [ "$status" -eq 0 ]
-  grep -q 'BENCH_ROUTINE_ID' "$PROJ/.github/workflows/factory-dispatch.yml"
+  grep -q 'BENCH_ROUTINE_ID' "$PROJ/.github/workflows/bench-dispatch.yml"
 }
 
 @test "--dispatch never overwrites an existing dispatch workflow" {
   mkdir -p "$PROJ/.github/workflows"
-  echo 'my custom dispatch' > "$PROJ/.github/workflows/factory-dispatch.yml"
+  echo 'my custom dispatch' > "$PROJ/.github/workflows/bench-dispatch.yml"
 
   run_install --dispatch action
 
   [ "$status" -eq 0 ]
-  [ "$(cat "$PROJ/.github/workflows/factory-dispatch.yml")" = "my custom dispatch" ]
+  [ "$(cat "$PROJ/.github/workflows/bench-dispatch.yml")" = "my custom dispatch" ]
   [[ "$output" == *"already exists"* ]]
 }
 
