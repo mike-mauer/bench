@@ -290,7 +290,9 @@ async function claim(number, builder) {
   const ack = await agent(
     `Housekeeping on GitHub issue #${number}. ${GH}\n\n` +
       `First read the issue's current labels and report them in \`detail\`. Then add the label ` +
-      `\`bench:in-progress\`. Remove every \`gate:*\` label already on the issue (the planner ` +
+      `\`bench:in-progress\`. Remove \`bench:dispatch\` if present — it is the one-shot trigger ` +
+      `(§3), and leaving it on means a later remove/re-add silently starts a second run. ` +
+      `Remove every \`gate:*\` label already on the issue (the planner ` +
       `may have preset one that doesn't match this route's builder), then add \`gate:${builder}\` ` +
       `(create it if it does not exist) — exactly one \`gate:*\` label must remain, per §3. ` +
       `Change nothing else and post no comment. Report ok.`,

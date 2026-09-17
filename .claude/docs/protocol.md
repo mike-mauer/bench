@@ -62,7 +62,8 @@ All comments are posted by one GitHub identity. **Attribution is the heading** o
 
 | Label | Set by | Meaning |
 |---|---|---|
-| `bench:ready` | human, planner, or Sentry-lane intake | Eligible for dispatch once it has no open blockers. |
+| `bench:ready` | human, planner, or Sentry-lane intake | **Eligibility, not a trigger.** Durable: the issue is dispatchable once it has no open blockers. Adding it starts nothing. |
+| `bench:dispatch` | **a human only** | **The trigger.** Its `labeled` event is what fires a dispatch lane (§12). Momentary — `claim()` removes it, so it reads as a button. No role, script or workflow may add it: an epic's children are dispatched by their parent's wave, and a child that could self-dispatch would be built twice (#33). |
 | `bench:in-progress` | orchestrator at dispatch | A session owns it. Removed on finish. |
 | `bench:approved` | reviewer on `pass` | PR is marked ready for review. Merge closes the issue. |
 | `needs-human` | orchestrator | Bounce cap hit (§8). Dispatch skips it. |
@@ -230,7 +231,7 @@ object or `null` if the agent died — always handle `null`.
 ## 12. Triggers
 
 - **Issue lane:** `templates/bench-dispatch-action.yml` — a GitHub Actions workflow on
-  `issues: [labeled]` with `bench:ready` that runs `anthropics/claude-code-action@v1` in
+  `issues: [labeled]` with `bench:dispatch` that runs `anthropics/claude-code-action@v1` in
   automation mode with a prompt: "Run the factory workflow (`.claude/workflows/factory.js`)
   for issue #${{ github.event.issue.number }}." `templates/bench-dispatch-routine.yml` is
   the alternative that `curl`s a Claude Code Routine's `/fire` endpoint with the issue number

@@ -110,7 +110,7 @@ session, and any GitHub Actions runner, which never has the plugin at all).
 If `gh` is on `PATH`:
 ```bash
 for l in \
-  "bench:ready:0E8A16" "bench:in-progress:FBCA04" "bench:approved:0E8A16" \
+  "bench:ready:0E8A16" "bench:dispatch:5319E7" "bench:in-progress:FBCA04" "bench:approved:0E8A16" \
   "needs-human:B60205" \
   "gate:engineer:1D76DB" "gate:qa:1D76DB" "gate:reviewer:1D76DB" \
   "type:epic:5319E7" "lane:ui:C5DEF5" "lane:data:C5DEF5" \

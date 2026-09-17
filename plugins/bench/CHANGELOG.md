@@ -80,6 +80,28 @@ v1: nothing errors, dispatch just silently stops finding work. See **Migration**
   delete it by hand after the new `bench-dispatch.yml` lands, or the issue-labeled event
   fires both lanes.
 
+**Fixed:**
+- **Every sub-issue of an epic could be built twice, concurrently** (#33) — two builders, two
+  feature branches, two draft PRs, both moving the same `gate:*` labels. `bench:ready` was
+  doing two unrelated jobs: §5 eligibility (planner-owned, durable) *and* the `labeled` event
+  that starts a run. Because the planner labels an epic's children `bench:ready` during the
+  Plan phase, each label event fired a dispatch lane while the parent run's `runWaves` was
+  about to dispatch the same children. The child's own run won the race comfortably, and the
+  per-issue concurrency group meant the two never cancelled.
+
+  **New `bench:dispatch` label owns the trigger, and only a human may set it.** Both lanes
+  now fire on `bench:dispatch`; `bench:ready` starts nothing. The planner's prompt forbids
+  setting it, so an epic's children can only be dispatched by their parent's wave — the
+  double-build is structurally impossible rather than merely raced. `claim()` strips the
+  label, so it behaves like a one-shot button rather than leaving a stale trigger that a
+  remove/re-add would silently re-fire.
+
+  **Behaviour change:** a standalone planner run's children no longer auto-dispatch — they
+  wait for a human to add `bench:dispatch`. Epics still fan out automatically *within* one
+  run, so it is one action per epic, not per sub-issue. Deliberately deferred: Sentry-lane
+  intake needs the same carve-out for unattended self-healing (#18), and #19's cron sweep
+  must not dispatch a child whose parent epic is in flight.
+
 **Migration:**
 - Rename the three labels **in place**, which carries their existing issue associations —
   delete-and-recreate drops pipeline state off every open issue:
@@ -92,6 +114,8 @@ v1: nothing errors, dispatch just silently stops finding work. See **Migration**
 
 - Then re-run `/bench:init` (or `cloud-install.sh`) to refresh the copied roles, skill,
   workflow, scripts and the newly-shipped protocol.
+- `/bench:init` also creates the new `bench:dispatch` label. **After upgrading, adding
+  `bench:ready` no longer dispatches anything** — add `bench:dispatch` to start a run.
 
 ## 1.0.0 — Bench v2: GitHub Issues replace beads/Dolt
 
